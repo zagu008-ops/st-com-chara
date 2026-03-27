@@ -39,7 +39,12 @@ export const defaultSettings = {
 
     // 固定提示词
     fixed_positive_prompt: 'masterpiece, best quality',
+    fixed_positive_prompt_end: '',
     fixed_negative_prompt: 'worst quality, low quality, normal quality, lowres, bad anatomy, bad hands',
+
+    // 质量预设
+    positive_quality_preset: 'best quality, amazing quality, very aesthetic, absurdres',
+    negative_quality_preset: '',
 
     // 工作流 JSON（用户粘贴 ComfyUI 导出的 API JSON）
     workflow_json: '',

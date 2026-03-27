@@ -81,9 +81,12 @@ function bindSettingsEvents() {
         { id: '#comfyui-gen-url', key: 'comfyui_url' },
         { id: '#comfyui-gen-client-mode', key: 'client_mode' },
         { id: '#comfyui-gen-fixed-positive', key: 'fixed_positive_prompt' },
+        { id: '#comfyui-gen-fixed-positive-end', key: 'fixed_positive_prompt_end' },
         { id: '#comfyui-gen-fixed-negative', key: 'fixed_negative_prompt' },
         { id: '#comfyui-gen-workflow', key: 'workflow_json' },
         { id: '#comfyui-gen-interrogate-workflow', key: 'interrogate_workflow_json' },
+        { id: '#comfyui-gen-positive-quality', key: 'positive_quality_preset' },
+        { id: '#comfyui-gen-negative-quality', key: 'negative_quality_preset' },
     ];
 
     textInputs.forEach(({ id, key }) => {
@@ -352,9 +355,12 @@ function loadSettingsToUI() {
     $('#comfyui-gen-height').val(s.default_params.height);
     $('#comfyui-gen-seed').val(s.default_params.seed);
     $('#comfyui-gen-fixed-positive').val(s.fixed_positive_prompt);
+    $('#comfyui-gen-fixed-positive-end').val(s.fixed_positive_prompt_end);
     $('#comfyui-gen-fixed-negative').val(s.fixed_negative_prompt);
     $('#comfyui-gen-workflow').val(s.workflow_json);
     $('#comfyui-gen-interrogate-workflow').val(s.interrogate_workflow_json);
+    $('#comfyui-gen-positive-quality').val(s.positive_quality_preset);
+    $('#comfyui-gen-negative-quality').val(s.negative_quality_preset);
     $('#comfyui-gen-jpeg-compress').prop('checked', s.jpeg_compression);
     $('#comfyui-gen-fab-enabled').prop('checked', s.fab_enabled);
 

@@ -134,13 +134,39 @@
                     <div class="comfyui-gen-section">
                         <h3>固定提示词</h3>
                         <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-positive-quality">正面质量预设</label>
+                            <select id="comfyui-gen-positive-quality">
+                                <option value="best quality, amazing quality, very aesthetic, absurdres">启用（推荐）</option>
+                                <option
+                                    value="masterpiece, best quality, highres, ultra-detailed, very aesthetic, sharp focus, depth of field, ray tracing, best lighting">
+                                    高质量</option>
+                                <option value="">禁用</option>
+                            </select>
+                        </div>
+                        <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-negative-quality">负面质量预设</label>
+                            <select id="comfyui-gen-negative-quality">
+                                <option value="">无</option>
+                                <option
+                                    value="bad proportions, out of focus, username, text, bad anatomy, lowres, worstquality, watermark, cropped, bad body, deformed, mutated, disfigured, poorly drawn face, malformed hands, extra arms, extra limb, missing limb, too many fingers, extra legs, bad feet, missing fingers, fused fingers, acnes, floating limbs, disconnected limbs, long neck, long body, mutation, ugly, blurry, low quality, sketches, normal quality, monochrome, grayscale, signature, logo, jpeg artifacts, unfinished, displeasing, chromatic aberration, extra digits, artistic error, scan, abstract, photo, realism, screencap">
+                                    预设1（通用）</option>
+                                <option
+                                    value="negativeXL_D, negativeXL, source_furry, extra limbs, deformations, long fingers, fused fingers, inaccurate_anatomy, bad proportions, poorly drawn hands, bad hands, extra_fingers, extra_hand, extra_arm, distorted fingers, ugly hands, creepy hands, six fingers, malformed fingers, long_fingers, interlocked fingers:1.2, ugly, deformed, uneven, asymmetrical, unnatural, missing fingers, extra digit, fewer digits, opaque eyes, small eyes, ugly eyes, blurred eyes, bad face, (bad anatomy, ugly face:1.2), (worst quality, low quality, not detailed, low resolution:1.2), motion_blur, blur, blur_censor, blurry, simple_background, text, error, cropped, normal quality, jpeg artifacts, watermark, logo, signature, username, artist name">
+                                    预设2（SDXL 专用）</option>
+                            </select>
+                        </div>
+                        <div class="comfyui-gen-field">
                             <label for="comfyui-gen-fixed-positive">固定正面提示词</label>
-                            <textarea id="comfyui-gen-fixed-positive" rows="2"
+                            <textarea id="comfyui-gen-fixed-positive" rows="3"
                                 placeholder="masterpiece, best quality"></textarea>
                         </div>
                         <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-fixed-positive-end">后置固定正面提示词 <small>追加在所有正面提示词末尾</small></label>
+                            <textarea id="comfyui-gen-fixed-positive-end" rows="2" placeholder=""></textarea>
+                        </div>
+                        <div class="comfyui-gen-field">
                             <label for="comfyui-gen-fixed-negative">固定负面提示词</label>
-                            <textarea id="comfyui-gen-fixed-negative" rows="2"
+                            <textarea id="comfyui-gen-fixed-negative" rows="3"
                                 placeholder="worst quality, low quality"></textarea>
                         </div>
                     </div>
