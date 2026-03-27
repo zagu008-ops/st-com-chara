@@ -343,7 +343,7 @@ function renderPresetGrid(type) {
 
 // === 提示词预设相关 ===
 function updatePromptPresetDropdown() {
-    const s = extension_settings[pluginName];
+    const s = extension_settings[extensionName];
     if (!s.prompt_presets) s.prompt_presets = [];
     const $select = $('#comfyui-gen-prompt-preset');
     $select.empty();
@@ -358,7 +358,7 @@ function updatePromptPresetDropdown() {
 }
 
 function loadPromptPreset(id) {
-    const s = extension_settings[pluginName];
+    const s = extension_settings[extensionName];
     s.current_prompt_preset_id = id;
 
     if (!id) {
@@ -392,7 +392,7 @@ $('#comfyui-gen-new-prompt-preset').on('click', function () {
     const name = prompt('请输入新提示词预设的名称：');
     if (!name) return;
 
-    const s = extension_settings[pluginName];
+    const s = extension_settings[extensionName];
     if (!s.prompt_presets) s.prompt_presets = [];
 
     const newPreset = {
@@ -413,7 +413,7 @@ $('#comfyui-gen-new-prompt-preset').on('click', function () {
 });
 
 $('#comfyui-gen-save-prompt-preset').on('click', function () {
-    const s = extension_settings[pluginName];
+    const s = extension_settings[extensionName];
     const id = s.current_prompt_preset_id;
     if (!id) {
         toastr.warning('当前是默认配置，不能保存。请先「新建预设」。', 'ComfyUI 生图');
@@ -433,7 +433,7 @@ $('#comfyui-gen-save-prompt-preset').on('click', function () {
 });
 
 $('#comfyui-gen-delete-prompt-preset').on('click', function () {
-    const s = extension_settings[pluginName];
+    const s = extension_settings[extensionName];
     const id = s.current_prompt_preset_id;
     if (!id) {
         toastr.warning('没有选中预设，无法删除', 'ComfyUI 生图');
@@ -463,7 +463,7 @@ $('#comfyui-gen-migrate-prompt-presets').on('click', function () {
         return;
     }
 
-    const s = extension_settings[pluginName];
+    const s = extension_settings[extensionName];
     if (!s.prompt_presets) s.prompt_presets = [];
 
     let migratedCount = 0;
