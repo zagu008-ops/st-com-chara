@@ -1,0 +1,12 @@
+{
+    "display_name": "ComfyUI Gen",
+    "loading_order": 10,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "comfyui-gen",
+    "version": "1.0.0",
+    "homePage": "",
+    "updata": "v1.0.0\n初始版本：ComfyUI 专用生图插件\n支持服装预设和角色预设管理\n支持图片反推提示词\n悬浮球快捷操作"
+}

@@ -1,0 +1,65 @@
+/**
+ * ComfyUI Gen - 配置文件
+ * 默认设置、事件常量、扩展名
+ */
+
+export const extensionName = 'comfyui-gen';
+export const extensionFolderPath = `/scripts/extensions/third-party/${extensionName}`;
+
+// 事件名常量
+export const EVENTS = {
+    GENERATE_REQUEST: 'comfyui_gen_generate_request',
+    GENERATE_RESPONSE: 'comfyui_gen_generate_response',
+    PRESET_CHANGED: 'comfyui_gen_preset_changed',
+    INTERROGATE_REQUEST: 'comfyui_gen_interrogate_request',
+    INTERROGATE_RESPONSE: 'comfyui_gen_interrogate_response',
+};
+
+// 默认设置
+export const defaultSettings = {
+    enabled: true,
+
+    // ComfyUI 连接配置
+    comfyui_url: 'http://127.0.0.1:8188',
+    client_mode: 'browser',  // 'browser' | 'server'
+
+    // 生图默认参数
+    default_params: {
+        steps: 20,
+        cfg_scale: 7,
+        width: 512,
+        height: 768,
+        sampler_name: 'euler',
+        scheduler: 'normal',
+        seed: -1,
+        model_name: '',
+        vae: '',
+        clip: '',
+    },
+
+    // 固定提示词
+    fixed_positive_prompt: 'masterpiece, best quality',
+    fixed_negative_prompt: 'worst quality, low quality, normal quality, lowres, bad anatomy, bad hands',
+
+    // 工作流 JSON（用户粘贴 ComfyUI 导出的 API JSON）
+    workflow_json: '',
+
+    // 反推工作流 JSON（用于图片反推提示词）
+    interrogate_workflow_json: '',
+
+    // 预设数据
+    outfit_presets: [],
+    character_presets: [],
+
+    // 当前选中的预设
+    active_outfit_id: '',
+    active_character_id: '',
+
+    // 悬浮球设置
+    fab_enabled: true,
+    fab_position: { right: 20, bottom: 80 },
+
+    // JPEG 压缩
+    jpeg_compression: false,
+    jpeg_quality: 85,
+};

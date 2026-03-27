@@ -1,0 +1,706 @@
+/* ========== ComfyUI Gen - Design System ========== */
+:root {
+    --cg-primary: #6366f1;
+    --cg-primary-hover: #4f46e5;
+    --cg-primary-glow: rgba(99, 102, 241, 0.3);
+    --cg-danger: #ef4444;
+    --cg-danger-hover: #dc2626;
+    --cg-success: #22c55e;
+    --cg-warning: #f59e0b;
+    --cg-bg: #1a1b2e;
+    --cg-bg-secondary: #222344;
+    --cg-bg-tertiary: #2a2b4a;
+    --cg-surface: #2d2e52;
+    --cg-border: rgba(255, 255, 255, 0.08);
+    --cg-text: #e2e8f0;
+    --cg-text-secondary: #94a3b8;
+    --cg-text-muted: #64748b;
+    --cg-radius: 12px;
+    --cg-radius-sm: 8px;
+    --cg-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --cg-transition: 0.2s ease;
+}
+
+/* ========== Modal Backdrop ========== */
+.comfyui-gen-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: cg-fadein 0.2s ease;
+}
+
+.comfyui-gen-modal-content {
+    width: 90vw;
+    max-width: 800px;
+    max-height: 85vh;
+    background: var(--cg-bg);
+    border: 1px solid var(--cg-border);
+    border-radius: 16px;
+    box-shadow: var(--cg-shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ========== Modal Header ========== */
+.comfyui-gen-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--cg-border);
+    background: var(--cg-bg-secondary);
+}
+
+.comfyui-gen-modal-header h2 {
+    margin: 0;
+    font-size: 1.2em;
+    color: var(--cg-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.comfyui-gen-modal-header h2 i {
+    color: var(--cg-primary);
+}
+
+.comfyui-gen-version {
+    font-size: 0.65em;
+    color: var(--cg-text-muted);
+    background: var(--cg-bg-tertiary);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.comfyui-gen-modal-close {
+    font-size: 1.5em;
+    cursor: pointer;
+    color: var(--cg-text-secondary);
+    transition: color var(--cg-transition);
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.comfyui-gen-modal-close:hover {
+    color: var(--cg-danger);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* ========== Tab Navigation ========== */
+.comfyui-gen-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--cg-border);
+    background: var(--cg-bg-secondary);
+    padding: 0 16px;
+}
+
+.comfyui-gen-tab {
+    padding: 12px 20px;
+    border: none;
+    background: none;
+    color: var(--cg-text-secondary);
+    font-size: 0.9em;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all var(--cg-transition);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.comfyui-gen-tab:hover {
+    color: var(--cg-text);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.comfyui-gen-tab.active {
+    color: var(--cg-primary);
+    border-bottom-color: var(--cg-primary);
+}
+
+/* ========== Tab Content ========== */
+.comfyui-gen-tab-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+}
+
+.comfyui-gen-panel {
+    display: none;
+}
+
+.comfyui-gen-panel.active {
+    display: block;
+}
+
+/* ========== Sections ========== */
+.comfyui-gen-section {
+    margin-bottom: 24px;
+}
+
+.comfyui-gen-section h3 {
+    font-size: 1em;
+    color: var(--cg-text);
+    margin: 0 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--cg-border);
+}
+
+.comfyui-gen-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.comfyui-gen-section-header h3 {
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+/* ========== Form Fields ========== */
+.comfyui-gen-field {
+    margin-bottom: 14px;
+}
+
+.comfyui-gen-field label {
+    display: block;
+    font-size: 0.85em;
+    color: var(--cg-text-secondary);
+    margin-bottom: 6px;
+}
+
+.comfyui-gen-field small {
+    display: block;
+    font-size: 0.78em;
+    color: var(--cg-text-muted);
+    margin-top: 4px;
+}
+
+.comfyui-gen-field input[type="text"],
+.comfyui-gen-field input[type="number"],
+.comfyui-gen-field textarea,
+.comfyui-gen-field select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--cg-bg-tertiary);
+    border: 1px solid var(--cg-border);
+    border-radius: var(--cg-radius-sm);
+    color: var(--cg-text);
+    font-size: 0.9em;
+    transition: border-color var(--cg-transition);
+    box-sizing: border-box;
+}
+
+.comfyui-gen-field input:focus,
+.comfyui-gen-field textarea:focus,
+.comfyui-gen-field select:focus {
+    outline: none;
+    border-color: var(--cg-primary);
+    box-shadow: 0 0 0 3px var(--cg-primary-glow);
+}
+
+.comfyui-gen-field textarea.comfyui-gen-code {
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 0.82em;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.comfyui-gen-field.checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.comfyui-gen-field.checkbox input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--cg-primary);
+}
+
+.comfyui-gen-field.checkbox label {
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+.comfyui-gen-field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.comfyui-gen-field-grid .comfyui-gen-field {
+    margin-bottom: 0;
+}
+
+.comfyui-gen-optional {
+    font-size: 0.8em;
+    color: var(--cg-text-muted);
+}
+
+.comfyui-gen-status {
+    font-size: 0.85em;
+    margin-left: 8px;
+}
+
+/* ========== Buttons ========== */
+.comfyui-gen-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--cg-radius-sm);
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: all var(--cg-transition);
+}
+
+.comfyui-gen-btn.primary {
+    background: var(--cg-primary);
+    color: white;
+}
+
+.comfyui-gen-btn.primary:hover {
+    background: var(--cg-primary-hover);
+    box-shadow: 0 4px 12px var(--cg-primary-glow);
+}
+
+.comfyui-gen-btn.secondary {
+    background: var(--cg-bg-tertiary);
+    color: var(--cg-text);
+    border: 1px solid var(--cg-border);
+}
+
+.comfyui-gen-btn.secondary:hover {
+    background: var(--cg-surface);
+}
+
+.comfyui-gen-btn.danger {
+    background: var(--cg-danger);
+    color: white;
+}
+
+.comfyui-gen-btn.danger:hover {
+    background: var(--cg-danger-hover);
+}
+
+.comfyui-gen-btn-icon {
+    background: none;
+    border: none;
+    color: var(--cg-text-secondary);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: all var(--cg-transition);
+}
+
+.comfyui-gen-btn-icon:hover {
+    color: var(--cg-text);
+    background: var(--cg-bg-tertiary);
+}
+
+/* ========== Preset Grid ========== */
+.comfyui-gen-preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.comfyui-gen-preset-card {
+    background: var(--cg-bg-tertiary);
+    border: 2px solid var(--cg-border);
+    border-radius: var(--cg-radius);
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--cg-transition);
+    position: relative;
+}
+
+.comfyui-gen-preset-card:hover {
+    border-color: var(--cg-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.comfyui-gen-preset-card.active {
+    border-color: var(--cg-primary);
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.comfyui-gen-preset-card.active::after {
+    content: '✓';
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 0.75em;
+    color: var(--cg-primary);
+    background: rgba(99, 102, 241, 0.15);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.comfyui-gen-preset-card-thumb {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border-radius: var(--cg-radius-sm);
+    background: var(--cg-surface);
+    margin-bottom: 8px;
+}
+
+.comfyui-gen-preset-card-thumb-placeholder {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    border-radius: var(--cg-radius-sm);
+    background: var(--cg-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+    color: var(--cg-text-muted);
+    margin-bottom: 8px;
+}
+
+.comfyui-gen-preset-card-name {
+    font-size: 0.85em;
+    color: var(--cg-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.comfyui-gen-preset-card-edit {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    font-size: 0.7em;
+    color: var(--cg-text-muted);
+    background: rgba(0, 0, 0, 0.5);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    transition: all var(--cg-transition);
+}
+
+.comfyui-gen-preset-card:hover .comfyui-gen-preset-card-edit {
+    display: flex;
+}
+
+.comfyui-gen-preset-card-edit:hover {
+    color: var(--cg-primary);
+    background: rgba(0, 0, 0, 0.7);
+}
+
+/* ========== Editor ========== */
+.comfyui-gen-editor {
+    background: var(--cg-bg-secondary);
+    border: 1px solid var(--cg-border);
+    border-radius: var(--cg-radius);
+    padding: 20px;
+    margin-top: 16px;
+}
+
+.comfyui-gen-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.comfyui-gen-editor-header h3 {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+
+.comfyui-gen-editor-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+/* ========== Image Upload ========== */
+.comfyui-gen-image-upload-area {
+    border: 2px dashed var(--cg-border);
+    border-radius: var(--cg-radius);
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--cg-transition);
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.comfyui-gen-image-upload-area:hover {
+    border-color: var(--cg-primary);
+    background: rgba(99, 102, 241, 0.03);
+}
+
+.comfyui-gen-upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--cg-text-muted);
+}
+
+.comfyui-gen-upload-placeholder i {
+    font-size: 2em;
+}
+
+.comfyui-gen-upload-preview {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: var(--cg-radius-sm);
+}
+
+/* ========== FAB - Floating Action Button ========== */
+#comfyui-gen-fab {
+    position: fixed;
+    z-index: 9999;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--cg-primary) 0%, #8b5cf6 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2em;
+    cursor: grab;
+    box-shadow: 0 4px 20px var(--cg-primary-glow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#comfyui-gen-fab:hover {
+    transform: scale(1.08);
+    box-shadow: 0 6px 28px var(--cg-primary-glow);
+}
+
+#comfyui-gen-fab.active {
+    transform: scale(0.95) rotate(45deg);
+}
+
+/* ========== FAB Menu ========== */
+#comfyui-gen-fab-menu {
+    position: fixed;
+    z-index: 9998;
+    width: 260px;
+    background: var(--cg-bg);
+    border: 1px solid var(--cg-border);
+    border-radius: var(--cg-radius);
+    box-shadow: var(--cg-shadow);
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#comfyui-gen-fab-menu.open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.comfyui-gen-menu-section {
+    padding: 8px;
+}
+
+.comfyui-gen-menu-divider {
+    height: 1px;
+    background: var(--cg-border);
+    margin: 0 12px;
+}
+
+.comfyui-gen-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--cg-radius-sm);
+    cursor: pointer;
+    transition: background var(--cg-transition);
+    color: var(--cg-text);
+    font-size: 0.9em;
+}
+
+.comfyui-gen-menu-item:hover {
+    background: var(--cg-bg-tertiary);
+}
+
+.comfyui-gen-menu-item.generate {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.10));
+    color: var(--cg-primary);
+    font-weight: 500;
+}
+
+.comfyui-gen-menu-item.generate:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(139, 92, 246, 0.18));
+}
+
+.comfyui-gen-menu-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    font-size: 0.8em;
+    color: var(--cg-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.comfyui-gen-active-name {
+    margin-left: auto;
+    font-size: 0.95em;
+    color: var(--cg-primary);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.comfyui-gen-preset-list {
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 0 4px;
+}
+
+.comfyui-gen-preset-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background var(--cg-transition);
+    font-size: 0.85em;
+    color: var(--cg-text);
+}
+
+.comfyui-gen-preset-item:hover {
+    background: var(--cg-bg-tertiary);
+}
+
+.comfyui-gen-preset-item.active {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--cg-primary);
+}
+
+.comfyui-gen-preset-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: cover;
+}
+
+.comfyui-gen-preset-thumb-placeholder {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--cg-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7em;
+    color: var(--cg-text-muted);
+}
+
+.comfyui-gen-preset-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.comfyui-gen-empty {
+    padding: 12px;
+    text-align: center;
+    font-size: 0.82em;
+    color: var(--cg-text-muted);
+}
+
+/* ========== Scrollbar ========== */
+.comfyui-gen-tab-content::-webkit-scrollbar,
+.comfyui-gen-preset-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.comfyui-gen-tab-content::-webkit-scrollbar-track,
+.comfyui-gen-preset-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.comfyui-gen-tab-content::-webkit-scrollbar-thumb,
+.comfyui-gen-preset-list::-webkit-scrollbar-thumb {
+    background: var(--cg-border);
+    border-radius: 3px;
+}
+
+/* ========== Animations ========== */
+@keyframes cg-fadein {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes comfyui-gen-fadein {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ========== Image Result ========== */
+.comfyui-gen-image-wrapper {
+    margin: 10px 0;
+    display: inline-block;
+}
+
+.comfyui-gen-action-btn {
+    background: var(--cg-bg-tertiary);
+    border: 1px solid var(--cg-border);
+    color: var(--cg-text-secondary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: all var(--cg-transition);
+}
+
+.comfyui-gen-action-btn:hover {
+    color: var(--cg-primary);
+    border-color: var(--cg-primary);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 600px) {
+    .comfyui-gen-modal-content {
+        width: 98vw;
+        max-height: 90vh;
+        border-radius: 12px;
+    }
+
+    .comfyui-gen-field-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .comfyui-gen-preset-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    }
+}
