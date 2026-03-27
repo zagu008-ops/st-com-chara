@@ -190,12 +190,7 @@ function bindPresetEvents(type) {
         }
     });
 
-    // 图片上传区域点击 → 触发隐藏的 file input
-    $(`#${prefix}-upload-area`).on('click', () => {
-        $(`#${prefix}-image`)[0].click();
-    });
-
-    // 图片选择（file input change）
+    // 图片选择（file input change，由 label[for] 原生触发）
     $(`#${prefix}-image`).on('change', function () {
         const file = this.files[0];
         if (!file) return;
