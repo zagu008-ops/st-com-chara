@@ -134,6 +134,22 @@
                     <div class="comfyui-gen-section">
                         <h3>固定提示词</h3>
                         <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-prompt-preset">提示词预设</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <select id="comfyui-gen-prompt-preset" style="flex: 1;">
+                                    <option value="">默认配置</option>
+                                </select>
+                                <button id="comfyui-gen-save-prompt-preset" class="comfyui-gen-btn icon"
+                                    title="保存当前提示词"><i class="fa-solid fa-save"></i></button>
+                                <button id="comfyui-gen-new-prompt-preset" class="comfyui-gen-btn icon" title="新建预设"><i
+                                        class="fa-solid fa-plus"></i></button>
+                                <button id="comfyui-gen-delete-prompt-preset" class="comfyui-gen-btn icon danger"
+                                    title="删除当前预设"><i class="fa-solid fa-trash"></i></button>
+                                <button id="comfyui-gen-migrate-prompt-presets" class="comfyui-gen-btn icon secondary"
+                                    title="从原智绘姬插件一键迁移预设"><i class="fa-solid fa-file-import"></i> 一键迁移</button>
+                            </div>
+                        </div>
+                        <div class="comfyui-gen-field">
                             <label for="comfyui-gen-positive-quality">正面质量预设</label>
                             <select id="comfyui-gen-positive-quality">
                                 <option value="best quality, amazing quality, very aesthetic, absurdres">启用（推荐）</option>

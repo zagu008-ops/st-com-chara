@@ -341,6 +341,162 @@ function renderPresetGrid(type) {
     });
 }
 
+// === 提示词预设相关 ===
+function updatePromptPresetDropdown() {
+    const s = extension_settings[pluginName];
+    if (!s.prompt_presets) s.prompt_presets = [];
+    const $select = $('#comfyui-gen-prompt-preset');
+    $select.empty();
+    $select.append('<option value="">默认配置</option>');
+
+    if (s.prompt_presets && s.prompt_presets.length > 0) {
+        s.prompt_presets.forEach(p => {
+            $select.append($('<option></option>').val(p.id).text(p.name));
+        });
+    }
+    $select.val(s.current_prompt_preset_id || '');
+}
+
+function loadPromptPreset(id) {
+    const s = extension_settings[pluginName];
+    s.current_prompt_preset_id = id;
+
+    if (!id) {
+        saveSettingsDebounced();
+        return;
+    }
+
+    const preset = s.prompt_presets.find(p => p.id === id);
+    if (preset) {
+        s.fixed_positive_prompt = preset.fixed_positive_prompt || '';
+        s.fixed_positive_prompt_end = preset.fixed_positive_prompt_end || '';
+        s.fixed_negative_prompt = preset.fixed_negative_prompt || '';
+        s.positive_quality_preset = preset.positive_quality_preset || '';
+        s.negative_quality_preset = preset.negative_quality_preset || '';
+
+        // 更新 UI
+        $('#comfyui-gen-fixed-positive').val(s.fixed_positive_prompt);
+        $('#comfyui-gen-fixed-positive-end').val(s.fixed_positive_prompt_end);
+        $('#comfyui-gen-fixed-negative').val(s.fixed_negative_prompt);
+        $('#comfyui-gen-positive-quality').val(s.positive_quality_preset);
+        $('#comfyui-gen-negative-quality').val(s.negative_quality_preset);
+    }
+    saveSettingsDebounced();
+}
+
+$('#comfyui-gen-prompt-preset').on('change', function () {
+    loadPromptPreset($(this).val());
+});
+
+$('#comfyui-gen-new-prompt-preset').on('click', function () {
+    const name = prompt('请输入新提示词预设的名称：');
+    if (!name) return;
+
+    const s = extension_settings[pluginName];
+    if (!s.prompt_presets) s.prompt_presets = [];
+
+    const newPreset = {
+        id: Date.now().toString(),
+        name: name,
+        fixed_positive_prompt: $('#comfyui-gen-fixed-positive').val() || '',
+        fixed_positive_prompt_end: $('#comfyui-gen-fixed-positive-end').val() || '',
+        fixed_negative_prompt: $('#comfyui-gen-fixed-negative').val() || '',
+        positive_quality_preset: $('#comfyui-gen-positive-quality').val() || '',
+        negative_quality_preset: $('#comfyui-gen-negative-quality').val() || ''
+    };
+
+    s.prompt_presets.push(newPreset);
+    s.current_prompt_preset_id = newPreset.id;
+    saveSettingsDebounced();
+    updatePromptPresetDropdown();
+    toastr.success('已新建预设：' + name, 'ComfyUI 生图');
+});
+
+$('#comfyui-gen-save-prompt-preset').on('click', function () {
+    const s = extension_settings[pluginName];
+    const id = s.current_prompt_preset_id;
+    if (!id) {
+        toastr.warning('当前是默认配置，不能保存。请先「新建预设」。', 'ComfyUI 生图');
+        return;
+    }
+
+    const preset = s.prompt_presets.find(p => p.id === id);
+    if (preset) {
+        preset.fixed_positive_prompt = $('#comfyui-gen-fixed-positive').val() || '';
+        preset.fixed_positive_prompt_end = $('#comfyui-gen-fixed-positive-end').val() || '';
+        preset.fixed_negative_prompt = $('#comfyui-gen-fixed-negative').val() || '';
+        preset.positive_quality_preset = $('#comfyui-gen-positive-quality').val() || '';
+        preset.negative_quality_preset = $('#comfyui-gen-negative-quality').val() || '';
+        saveSettingsDebounced();
+        toastr.success('已保存当前预设', 'ComfyUI 生图');
+    }
+});
+
+$('#comfyui-gen-delete-prompt-preset').on('click', function () {
+    const s = extension_settings[pluginName];
+    const id = s.current_prompt_preset_id;
+    if (!id) {
+        toastr.warning('没有选中预设，无法删除', 'ComfyUI 生图');
+        return;
+    }
+
+    if (confirm('确定要删除当前预设吗？')) {
+        s.prompt_presets = s.prompt_presets.filter(p => p.id !== id);
+        s.current_prompt_preset_id = '';
+        saveSettingsDebounced();
+        updatePromptPresetDropdown();
+        loadPromptPreset('');
+        toastr.success('预设已删除', 'ComfyUI 生图');
+    }
+});
+
+$('#comfyui-gen-migrate-prompt-presets').on('click', function () {
+    const oldExt = extension_settings['st-chatu8'];
+    if (!oldExt || !oldExt.yushe) {
+        toastr.info('未在系统中找到原 st-chatu8 插件的预设数据，请确认它是否存在。', 'ComfyUI 数据迁移');
+        return;
+    }
+
+    const oldYushe = oldExt.yushe;
+    if (typeof oldYushe !== 'object') {
+        toastr.error('原预设数据格式异常。', 'ComfyUI 数据迁移');
+        return;
+    }
+
+    const s = extension_settings[pluginName];
+    if (!s.prompt_presets) s.prompt_presets = [];
+
+    let migratedCount = 0;
+
+    // keys typically match preset names
+    const keys = Object.keys(oldYushe);
+    keys.forEach(key => {
+        const oldItem = oldYushe[key];
+        if (!oldItem) return;
+        // Skip duplicate names
+        if (s.prompt_presets.some(p => p.name === key)) return;
+
+        s.prompt_presets.push({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            name: key,
+            fixed_positive_prompt: oldItem.fixedPrompt_comfyui || '',
+            fixed_positive_prompt_end: oldItem.fixedPrompt_end_comfyui || '',
+            fixed_negative_prompt: oldItem.negativePrompt_comfyui || '',
+            positive_quality_preset: oldItem.AQT_comfyui === false ? '' : (oldItem.AQT_comfyui || s.positive_quality_preset),
+            negative_quality_preset: oldItem.UCP_comfyui || ''
+        });
+        migratedCount++;
+    });
+
+    if (migratedCount > 0) {
+        saveSettingsDebounced();
+        updatePromptPresetDropdown();
+        toastr.success(`成功迁移了 ${migratedCount} 个提示词预设！`, 'ComfyUI 数据迁移');
+    } else {
+        toastr.info('没有找到新的可迁移预设（可能是名称重复已存在）。', 'ComfyUI 数据迁移');
+    }
+});
+
 /**
  * 加载设置到 UI
  */
@@ -369,6 +525,9 @@ function loadSettingsToUI() {
     if ($(`#comfyui-gen-size-preset option[value="${sizeKey}"]`).length) {
         $('#comfyui-gen-size-preset').val(sizeKey);
     }
+
+    // 加载下拉提示词预设列表
+    updatePromptPresetDropdown();
 }
 
 /**

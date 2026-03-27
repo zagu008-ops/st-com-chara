@@ -46,6 +46,11 @@ export const defaultSettings = {
     positive_quality_preset: 'best quality, amazing quality, very aesthetic, absurdres',
     negative_quality_preset: '',
 
+    // 提示词预设集合
+    // { id: string, name: string, fixed_positive_prompt: string, fixed_positive_prompt_end: string, fixed_negative_prompt: string, positive_quality_preset: string, negative_quality_preset: string }
+    prompt_presets: [],
+    current_prompt_preset_id: '',
+
     // 工作流 JSON（用户粘贴 ComfyUI 导出的 API JSON）
     workflow_json: '',
 
