@@ -14,11 +14,14 @@ import { uploadImageToComfyUI, replaceWorkflowPlaceholders } from './comfyui.js'
  */
 export async function interrogateImage(imageFile) {
     const settings = extension_settings[extensionName];
-    const url = settings.comfyui_url.replace(/\/$/, '');
+    // 如果单独配置了反推接口，则使用反推接口（要求该接口兼容 ComfyUI 的 /upload/image 和 /prompt）
+    const baseUrl = settings.interrogate_url
+        ? settings.interrogate_url.replace(/\/$/, '')
+        : settings.comfyui_url.replace(/\/$/, '');
 
-    // 1. 上传图片到 ComfyUI
-    console.log('[ComfyUI Gen] 上传图片进行反推...');
-    const uploadResult = await uploadImageToComfyUI(imageFile, 'comfyui-gen');
+    // 1. 上传图片到指定 ComfyUI
+    console.log('[ComfyUI Gen] 上传图片进行反推到:', baseUrl);
+    const uploadResult = await uploadImageToComfyUI(imageFile, 'comfyui-gen', baseUrl);
     const imageName = uploadResult.name;
     const imageSubfolder = uploadResult.subfolder || 'comfyui-gen';
 
@@ -44,7 +47,7 @@ export async function interrogateImage(imageFile) {
 
     // 4. 发送请求
     const clientId = 'comfyui-gen-interrogate-' + Math.random().toString(36).substring(2, 10);
-    const response = await fetch(`${url}/prompt`, {
+    const response = await fetch(`${baseUrl}/prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_id: clientId, prompt: workflow }),
@@ -60,7 +63,7 @@ export async function interrogateImage(imageFile) {
 
     // 5. 轮询结果
     console.log('[ComfyUI Gen] 等待反推结果...');
-    const result = await pollInterrogateResult(url, promptId);
+    const result = await pollInterrogateResult(baseUrl, promptId);
     return result;
 }
 

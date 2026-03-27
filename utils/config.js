@@ -56,6 +56,7 @@ export const defaultSettings = {
 
     // 反推工作流 JSON（用于图片反推提示词）
     interrogate_workflow_json: '',
+    interrogate_url: '',
 
     // 预设数据
     outfit_presets: [],

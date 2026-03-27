@@ -406,9 +406,9 @@ function compressToJpeg(blob, quality = 85) {
 /**
  * 上传图片到 ComfyUI
  */
-export async function uploadImageToComfyUI(file, subfolder = 'comfyui-gen') {
+export async function uploadImageToComfyUI(file, subfolder = 'comfyui-gen', baseUrl = null) {
     const settings = getSettings();
-    const url = settings.comfyui_url.replace(/\/$/, '');
+    const url = baseUrl || settings.comfyui_url.replace(/\/$/, '');
 
     const formData = new FormData();
     formData.append('image', file);

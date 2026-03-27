@@ -635,11 +635,19 @@ async function updateExtension() {
     btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 更新中...').prop('disabled', true);
 
     try {
-        const response = await fetch('/api/extensions/install', {
+        // Fetch CSRF token for the update request
+        const tokenResponse = await fetch('/api/csrf-token');
+        const tokenData = await tokenResponse.json();
+        const csrfToken = tokenData.token;
+
+        const response = await fetch('/api/extensions/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
             body: JSON.stringify({
-                url: 'https://github.com/zagu008-ops/st-com-chara',
+                extension: 'st-com-chara',
                 global: false,
             }),
         });

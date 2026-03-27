@@ -43,6 +43,13 @@
                             <span id="comfyui-gen-connection-status" class="comfyui-gen-status"></span>
                         </div>
                         <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-interrogate-url">反推提示词接口 (Image-to-Prompt API) <span
+                                    class="comfyui-gen-optional">(可选)</span></label>
+                            <input type="text" id="comfyui-gen-interrogate-url"
+                                placeholder="http://127.0.0.1:5000 或者留空默认使用 ComfyUI" />
+                            <small>如果不填，反推将默认使用上方的 ComfyUI 和设置中的 WD14 Tagger 工作流进行处理。</small>
+                        </div>
+                        <div class="comfyui-gen-field">
                             <label for="comfyui-gen-client-mode">客户端模式</label>
                             <select id="comfyui-gen-client-mode">
                                 <option value="browser">浏览器直连</option>
@@ -264,7 +271,8 @@
                                 <img id="comfyui-gen-outfit-preview" class="comfyui-gen-upload-preview"
                                     style="display:none" />
                             </label>
-                            <input type="file" id="comfyui-gen-outfit-image" accept="image/*" style="display:none" />
+                            <input type="file" id="comfyui-gen-outfit-image" accept="image/*"
+                                style="opacity: 0; position: absolute; z-index: -1;" />
                             <button id="comfyui-gen-outfit-interrogate" class="comfyui-gen-btn secondary"
                                 style="margin-top: 8px;">
                                 <i class="fa-solid fa-magnifying-glass"></i> 反推提示词
@@ -323,7 +331,8 @@
                                 <img id="comfyui-gen-character-preview" class="comfyui-gen-upload-preview"
                                     style="display:none" />
                             </label>
-                            <input type="file" id="comfyui-gen-character-image" accept="image/*" style="display:none" />
+                            <input type="file" id="comfyui-gen-character-image" accept="image/*"
+                                style="opacity: 0; position: absolute; z-index: -1;" />
                             <button id="comfyui-gen-character-interrogate" class="comfyui-gen-btn secondary"
                                 style="margin-top: 8px;">
                                 <i class="fa-solid fa-magnifying-glass"></i> 反推提示词
