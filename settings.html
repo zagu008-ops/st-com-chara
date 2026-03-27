@@ -4,7 +4,7 @@
         <div class="comfyui-gen-modal-content">
             <!-- 头部 -->
             <div class="comfyui-gen-modal-header">
-                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.0.0</span>
+                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.0.1</span>
                 </h2>
                 <div class="comfyui-gen-header-actions">
                     <button id="comfyui-gen-update-btn" class="comfyui-gen-btn secondary" title="从 GitHub 拉取最新代码">
@@ -27,11 +27,20 @@
 
                 <!-- ========== ComfyUI 配置 ========== -->
                 <div class="comfyui-gen-panel active" data-panel="comfyui">
+
+                    <!-- 连接设置 -->
                     <div class="comfyui-gen-section">
                         <h3>连接设置</h3>
                         <div class="comfyui-gen-field">
-                            <label for="comfyui-gen-url">ComfyUI 地址</label>
-                            <input type="text" id="comfyui-gen-url" placeholder="http://127.0.0.1:8188" />
+                            <label for="comfyui-gen-url">ComfyUI API 地址</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="comfyui-gen-url" placeholder="http://127.0.0.1:8188"
+                                    style="flex:1" />
+                                <button id="comfyui-gen-test-connection" class="comfyui-gen-btn secondary">
+                                    <i class="fa-solid fa-plug"></i> 测试并刷新
+                                </button>
+                            </div>
+                            <span id="comfyui-gen-connection-status" class="comfyui-gen-status"></span>
                         </div>
                         <div class="comfyui-gen-field">
                             <label for="comfyui-gen-client-mode">客户端模式</label>
@@ -39,27 +48,64 @@
                                 <option value="browser">浏览器直连</option>
                                 <option value="server">酒馆代理</option>
                             </select>
-                            <small>浏览器直连：直接从浏览器请求 ComfyUI。酒馆代理：通过 SillyTavern 服务端转发请求。</small>
-                        </div>
-                        <div class="comfyui-gen-field">
-                            <button id="comfyui-gen-test-connection" class="comfyui-gen-btn secondary">
-                                <i class="fa-solid fa-plug"></i> 测试连接
-                            </button>
-                            <span id="comfyui-gen-connection-status" class="comfyui-gen-status"></span>
+                            <small>浏览器直连：直接请求 ComfyUI。酒馆代理：通过 SillyTavern 服务端转发。</small>
                         </div>
                     </div>
 
+                    <!-- 模型 & 采样器（从 ComfyUI 动态加载） -->
                     <div class="comfyui-gen-section">
-                        <h3>默认参数</h3>
+                        <h3>模型与采样器 <small style="color:var(--cg-text-muted)">点击"测试并刷新"自动加载选项</small></h3>
                         <div class="comfyui-gen-field-grid">
                             <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-steps">采样步数</label>
-                                <input type="number" id="comfyui-gen-steps" min="1" max="150" value="20" />
+                                <label for="comfyui-gen-model">模型 (checkpoint)</label>
+                                <select id="comfyui-gen-model">
+                                    <option value="">请先连接 ComfyUI</option>
+                                </select>
                             </div>
                             <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-cfg">CFG Scale</label>
-                                <input type="number" id="comfyui-gen-cfg" min="1" max="30" step="0.5" value="7" />
+                                <label for="comfyui-gen-sampler">采样器</label>
+                                <select id="comfyui-gen-sampler">
+                                    <option value="">请先连接 ComfyUI</option>
+                                </select>
                             </div>
+                            <div class="comfyui-gen-field">
+                                <label for="comfyui-gen-scheduler">调度器</label>
+                                <select id="comfyui-gen-scheduler">
+                                    <option value="">请先连接 ComfyUI</option>
+                                </select>
+                            </div>
+                            <div class="comfyui-gen-field">
+                                <label for="comfyui-gen-vae">VAE</label>
+                                <select id="comfyui-gen-vae">
+                                    <option value="">默认</option>
+                                </select>
+                            </div>
+                            <div class="comfyui-gen-field" style="grid-column: span 2;">
+                                <label for="comfyui-gen-clip">CLIP</label>
+                                <select id="comfyui-gen-clip">
+                                    <option value="">默认</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 生成参数 -->
+                    <div class="comfyui-gen-section">
+                        <h3>生成参数</h3>
+                        <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-size-preset">预设尺寸</label>
+                            <select id="comfyui-gen-size-preset">
+                                <option value="">自定义</option>
+                                <option value="512x512">512×512 (1:1)</option>
+                                <option value="640x640">640×640 (1:1)</option>
+                                <option value="512x768">512×768 (2:3 竖)</option>
+                                <option value="768x512">768×512 (3:2 横)</option>
+                                <option value="1024x1024">1024×1024 (1:1, SDXL)</option>
+                                <option value="832x1216">832×1216 (13:19 竖, SDXL)</option>
+                                <option value="1216x832">1216×832 (19:13 横, SDXL)</option>
+                            </select>
+                        </div>
+                        <div class="comfyui-gen-field-grid">
                             <div class="comfyui-gen-field">
                                 <label for="comfyui-gen-width">宽度</label>
                                 <input type="number" id="comfyui-gen-width" min="64" max="4096" step="64" value="512" />
@@ -70,37 +116,21 @@
                                     value="768" />
                             </div>
                             <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-sampler">采样器</label>
-                                <select id="comfyui-gen-sampler">
-                                    <option value="euler">euler</option>
-                                    <option value="euler_ancestral">euler_ancestral</option>
-                                    <option value="dpmpp_2m">dpmpp_2m</option>
-                                    <option value="dpmpp_2m_sde">dpmpp_2m_sde</option>
-                                    <option value="dpmpp_sde">dpmpp_sde</option>
-                                    <option value="ddim">ddim</option>
-                                    <option value="uni_pc">uni_pc</option>
-                                </select>
+                                <label for="comfyui-gen-steps">采样步数</label>
+                                <input type="number" id="comfyui-gen-steps" min="1" max="150" value="20" />
                             </div>
                             <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-scheduler">调度器</label>
-                                <select id="comfyui-gen-scheduler">
-                                    <option value="normal">normal</option>
-                                    <option value="karras">karras</option>
-                                    <option value="exponential">exponential</option>
-                                    <option value="sgm_uniform">sgm_uniform</option>
-                                </select>
+                                <label for="comfyui-gen-cfg">CFG Scale</label>
+                                <input type="number" id="comfyui-gen-cfg" min="1" max="30" step="0.5" value="7" />
                             </div>
                             <div class="comfyui-gen-field">
                                 <label for="comfyui-gen-seed">种子 (-1 = 随机)</label>
                                 <input type="number" id="comfyui-gen-seed" value="-1" />
                             </div>
-                            <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-model">模型名称</label>
-                                <input type="text" id="comfyui-gen-model" placeholder="如 sd_xl_base_1.0.safetensors" />
-                            </div>
                         </div>
                     </div>
 
+                    <!-- 固定提示词 -->
                     <div class="comfyui-gen-section">
                         <h3>固定提示词</h3>
                         <div class="comfyui-gen-field">
@@ -115,31 +145,33 @@
                         </div>
                     </div>
 
+                    <!-- 工作流 -->
                     <div class="comfyui-gen-section">
                         <h3>工作流配置</h3>
                         <div class="comfyui-gen-field">
                             <label for="comfyui-gen-workflow">
                                 生图工作流 JSON
-                                <small>从 ComfyUI 导出 API 格式工作流，使用 %prompt%, %negative_prompt%, "%steps%" 等占位符</small>
+                                <small>从 ComfyUI 导出 API 格式，使用 %prompt% %negative_prompt% "%steps%" 等占位符</small>
                             </label>
-                            <textarea id="comfyui-gen-workflow" rows="8" class="comfyui-gen-code"
+                            <textarea id="comfyui-gen-workflow" rows="6" class="comfyui-gen-code"
                                 placeholder='粘贴 ComfyUI API JSON 工作流...'></textarea>
                         </div>
                         <div class="comfyui-gen-field">
                             <label for="comfyui-gen-interrogate-workflow">
                                 反推工作流 JSON <span class="comfyui-gen-optional">(可选)</span>
-                                <small>用于图片反推提示词的工作流，留空使用默认 WD14 Tagger 工作流</small>
+                                <small>用于图片反推提示词。留空使用默认 WD14 Tagger 工作流。使用 %interrogate_image% 占位符</small>
                             </label>
                             <textarea id="comfyui-gen-interrogate-workflow" rows="4" class="comfyui-gen-code"
                                 placeholder="留空使用默认 WD14 Tagger 工作流"></textarea>
                         </div>
                     </div>
 
+                    <!-- 其他设置 -->
                     <div class="comfyui-gen-section">
                         <h3>其他设置</h3>
                         <div class="comfyui-gen-field checkbox">
                             <input type="checkbox" id="comfyui-gen-jpeg-compress" />
-                            <label for="comfyui-gen-jpeg-compress">JPEG 压缩（节省空间，可能降低画质）</label>
+                            <label for="comfyui-gen-jpeg-compress">JPEG 压缩（节省空间）</label>
                         </div>
                         <div class="comfyui-gen-field checkbox">
                             <input type="checkbox" id="comfyui-gen-fab-enabled" checked />
@@ -157,18 +189,14 @@
                                 <i class="fa-solid fa-plus"></i> 新增服装
                             </button>
                         </div>
-                        <div id="comfyui-gen-outfit-grid" class="comfyui-gen-preset-grid">
-                            <!-- 动态渲染 -->
-                        </div>
+                        <div id="comfyui-gen-outfit-grid" class="comfyui-gen-preset-grid"></div>
                     </div>
 
-                    <!-- 服装编辑表单（默认隐藏） -->
                     <div id="comfyui-gen-outfit-editor" class="comfyui-gen-editor" style="display: none;">
                         <div class="comfyui-gen-editor-header">
                             <h3 id="comfyui-gen-outfit-editor-title">新增服装</h3>
-                            <button id="comfyui-gen-outfit-editor-close" class="comfyui-gen-btn-icon">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
+                            <button id="comfyui-gen-outfit-editor-close" class="comfyui-gen-btn-icon"><i
+                                    class="fa-solid fa-xmark"></i></button>
                         </div>
                         <div class="comfyui-gen-field">
                             <label>名称</label>
@@ -184,10 +212,8 @@
                             <textarea id="comfyui-gen-outfit-negative" rows="2" placeholder=""></textarea>
                         </div>
                         <div class="comfyui-gen-field">
-                            <label>参考图片（可选）</label>
-                            <div class="comfyui-gen-image-upload-area" id="comfyui-gen-outfit-upload">
-                                <input type="file" id="comfyui-gen-outfit-image" accept="image/*"
-                                    style="display:none" />
+                            <label>参考图片（可选，用于反推提示词）</label>
+                            <div class="comfyui-gen-image-upload-area" id="comfyui-gen-outfit-upload-area">
                                 <div class="comfyui-gen-upload-placeholder" id="comfyui-gen-outfit-upload-placeholder">
                                     <i class="fa-solid fa-cloud-arrow-up"></i>
                                     <span>点击上传图片</span>
@@ -195,18 +221,17 @@
                                 <img id="comfyui-gen-outfit-preview" class="comfyui-gen-upload-preview"
                                     style="display:none" />
                             </div>
+                            <input type="file" id="comfyui-gen-outfit-image" accept="image/*" style="display:none" />
                             <button id="comfyui-gen-outfit-interrogate" class="comfyui-gen-btn secondary"
                                 style="margin-top: 8px;">
                                 <i class="fa-solid fa-magnifying-glass"></i> 反推提示词
                             </button>
                         </div>
                         <div class="comfyui-gen-editor-actions">
-                            <button id="comfyui-gen-outfit-save" class="comfyui-gen-btn primary">
-                                <i class="fa-solid fa-check"></i> 保存
-                            </button>
-                            <button id="comfyui-gen-outfit-delete" class="comfyui-gen-btn danger" style="display:none">
-                                <i class="fa-solid fa-trash"></i> 删除
-                            </button>
+                            <button id="comfyui-gen-outfit-save" class="comfyui-gen-btn primary"><i
+                                    class="fa-solid fa-check"></i> 保存</button>
+                            <button id="comfyui-gen-outfit-delete" class="comfyui-gen-btn danger"
+                                style="display:none"><i class="fa-solid fa-trash"></i> 删除</button>
                         </div>
                         <input type="hidden" id="comfyui-gen-outfit-edit-id" />
                     </div>
@@ -221,18 +246,14 @@
                                 <i class="fa-solid fa-plus"></i> 新增角色
                             </button>
                         </div>
-                        <div id="comfyui-gen-character-grid" class="comfyui-gen-preset-grid">
-                            <!-- 动态渲染 -->
-                        </div>
+                        <div id="comfyui-gen-character-grid" class="comfyui-gen-preset-grid"></div>
                     </div>
 
-                    <!-- 角色编辑表单（默认隐藏） -->
                     <div id="comfyui-gen-character-editor" class="comfyui-gen-editor" style="display: none;">
                         <div class="comfyui-gen-editor-header">
                             <h3 id="comfyui-gen-character-editor-title">新增角色</h3>
-                            <button id="comfyui-gen-character-editor-close" class="comfyui-gen-btn-icon">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
+                            <button id="comfyui-gen-character-editor-close" class="comfyui-gen-btn-icon"><i
+                                    class="fa-solid fa-xmark"></i></button>
                         </div>
                         <div class="comfyui-gen-field">
                             <label>名称</label>
@@ -248,10 +269,8 @@
                             <textarea id="comfyui-gen-character-negative" rows="2" placeholder=""></textarea>
                         </div>
                         <div class="comfyui-gen-field">
-                            <label>参考图片（可选）</label>
-                            <div class="comfyui-gen-image-upload-area" id="comfyui-gen-character-upload">
-                                <input type="file" id="comfyui-gen-character-image" accept="image/*"
-                                    style="display:none" />
+                            <label>参考图片（可选，用于反推提示词）</label>
+                            <div class="comfyui-gen-image-upload-area" id="comfyui-gen-character-upload-area">
                                 <div class="comfyui-gen-upload-placeholder"
                                     id="comfyui-gen-character-upload-placeholder">
                                     <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -260,19 +279,17 @@
                                 <img id="comfyui-gen-character-preview" class="comfyui-gen-upload-preview"
                                     style="display:none" />
                             </div>
+                            <input type="file" id="comfyui-gen-character-image" accept="image/*" style="display:none" />
                             <button id="comfyui-gen-character-interrogate" class="comfyui-gen-btn secondary"
                                 style="margin-top: 8px;">
                                 <i class="fa-solid fa-magnifying-glass"></i> 反推提示词
                             </button>
                         </div>
                         <div class="comfyui-gen-editor-actions">
-                            <button id="comfyui-gen-character-save" class="comfyui-gen-btn primary">
-                                <i class="fa-solid fa-check"></i> 保存
-                            </button>
+                            <button id="comfyui-gen-character-save" class="comfyui-gen-btn primary"><i
+                                    class="fa-solid fa-check"></i> 保存</button>
                             <button id="comfyui-gen-character-delete" class="comfyui-gen-btn danger"
-                                style="display:none">
-                                <i class="fa-solid fa-trash"></i> 删除
-                            </button>
+                                style="display:none"><i class="fa-solid fa-trash"></i> 删除</button>
                         </div>
                         <input type="hidden" id="comfyui-gen-character-edit-id" />
                     </div>

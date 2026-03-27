@@ -62,6 +62,11 @@ function bindSettingsEvents() {
         $('#comfyui-gen-settings-modal').hide();
     });
 
+    // 点击背景关闭
+    $('#comfyui-gen-settings-modal').on('click', function (e) {
+        if (e.target === this) $(this).hide();
+    });
+
     // Tab 切换
     $('.comfyui-gen-tab').on('click', function () {
         const tab = $(this).data('tab');
@@ -72,26 +77,34 @@ function bindSettingsEvents() {
     });
 
     // === ComfyUI 配置保存 ===
-    const configInputs = [
+    const textInputs = [
         { id: '#comfyui-gen-url', key: 'comfyui_url' },
         { id: '#comfyui-gen-client-mode', key: 'client_mode' },
         { id: '#comfyui-gen-fixed-positive', key: 'fixed_positive_prompt' },
         { id: '#comfyui-gen-fixed-negative', key: 'fixed_negative_prompt' },
         { id: '#comfyui-gen-workflow', key: 'workflow_json' },
         { id: '#comfyui-gen-interrogate-workflow', key: 'interrogate_workflow_json' },
-        { id: '#comfyui-gen-model', key: 'default_params.model_name' },
     ];
 
-    configInputs.forEach(({ id, key }) => {
+    textInputs.forEach(({ id, key }) => {
         $(id).on('input change', function () {
-            const settings = extension_settings[extensionName];
-            const val = $(this).val();
-            if (key.includes('.')) {
-                const [parent, child] = key.split('.');
-                settings[parent][child] = val;
-            } else {
-                settings[key] = val;
-            }
+            extension_settings[extensionName][key] = $(this).val();
+            saveSettingsDebounced();
+        });
+    });
+
+    // 下拉框 → default_params
+    const selectParamInputs = [
+        { id: '#comfyui-gen-model', key: 'model_name' },
+        { id: '#comfyui-gen-sampler', key: 'sampler_name' },
+        { id: '#comfyui-gen-scheduler', key: 'scheduler' },
+        { id: '#comfyui-gen-vae', key: 'vae' },
+        { id: '#comfyui-gen-clip', key: 'clip' },
+    ];
+
+    selectParamInputs.forEach(({ id, key }) => {
+        $(id).on('change', function () {
+            extension_settings[extensionName].default_params[key] = $(this).val();
             saveSettingsDebounced();
         });
     });
@@ -112,15 +125,14 @@ function bindSettingsEvents() {
         });
     });
 
-    // 选择框参数
-    $('#comfyui-gen-sampler').on('change', function () {
-        extension_settings[extensionName].default_params.sampler_name = $(this).val();
-        saveSettingsDebounced();
-    });
-
-    $('#comfyui-gen-scheduler').on('change', function () {
-        extension_settings[extensionName].default_params.scheduler = $(this).val();
-        saveSettingsDebounced();
+    // 预设尺寸 → 自动填写宽高
+    $('#comfyui-gen-size-preset').on('change', function () {
+        const val = $(this).val();
+        if (val) {
+            const [w, h] = val.split('x').map(Number);
+            $('#comfyui-gen-width').val(w).trigger('change');
+            $('#comfyui-gen-height').val(h).trigger('change');
+        }
     });
 
     // 复选框
@@ -136,13 +148,13 @@ function bindSettingsEvents() {
         if (fab) fab.style.display = this.checked ? 'flex' : 'none';
     });
 
-    // 测试连接
-    $('#comfyui-gen-test-connection').on('click', testConnection);
+    // 测试连接 + 刷新下拉数据
+    $('#comfyui-gen-test-connection').on('click', testConnectionAndRefresh);
 
     // 更新插件
     $('#comfyui-gen-update-btn').on('click', updateExtension);
 
-    // === 服装预设 ===
+    // === 服装 & 角色预设 ===
     bindPresetEvents('outfit');
     bindPresetEvents('character');
 }
@@ -151,10 +163,10 @@ function bindSettingsEvents() {
  * 绑定预设操作事件（服装和角色共用逻辑）
  */
 function bindPresetEvents(type) {
-    const prefix = `comfyui-gen-${type === 'outfit' ? 'outfit' : 'character'}`;
+    const prefix = `comfyui-gen-${type}`;
 
     // 新增按钮
-    $(`#comfyui-gen-add-${type === 'outfit' ? 'outfit' : 'character'}`).on('click', () => {
+    $(`#comfyui-gen-add-${type}`).on('click', () => {
         openPresetEditor(type, null);
     });
 
@@ -178,12 +190,12 @@ function bindPresetEvents(type) {
         }
     });
 
-    // 图片上传区域点击
-    $(`#${prefix}-upload`).on('click', () => {
-        $(`#${prefix}-image`).trigger('click');
+    // 图片上传区域点击 → 触发隐藏的 file input
+    $(`#${prefix}-upload-area`).on('click', () => {
+        $(`#${prefix}-image`)[0].click();
     });
 
-    // 图片选择
+    // 图片选择（file input change）
     $(`#${prefix}-image`).on('change', function () {
         const file = this.files[0];
         if (!file) return;
@@ -202,7 +214,7 @@ function bindPresetEvents(type) {
         const file = fileInput?.files?.[0];
 
         if (!file) {
-            alert('请先上传图片');
+            toastr.warning('请先上传图片');
             return;
         }
 
@@ -213,10 +225,11 @@ function bindPresetEvents(type) {
         try {
             const tags = await interrogateImage(file);
             $(`#${prefix}-positive`).val(tags);
+            toastr.success('反推完成');
             console.log('[ComfyUI Gen] 反推结果:', tags);
         } catch (e) {
             console.error('[ComfyUI Gen] 反推失败:', e);
-            alert('反推失败: ' + e.message);
+            toastr.error('反推失败: ' + e.message);
         } finally {
             btn.html(originalText).prop('disabled', false);
         }
@@ -227,7 +240,7 @@ function bindPresetEvents(type) {
  * 打开预设编辑器
  */
 function openPresetEditor(type, presetId) {
-    const prefix = `comfyui-gen-${type === 'outfit' ? 'outfit' : 'character'}`;
+    const prefix = `comfyui-gen-${type}`;
     const editor = $(`#${prefix}-editor`);
 
     // 重置表单
@@ -240,7 +253,6 @@ function openPresetEditor(type, presetId) {
     $(`#${prefix}-edit-id`).val('');
 
     if (presetId) {
-        // 编辑模式
         const preset = getPresetById(type, presetId);
         if (!preset) return;
 
@@ -256,7 +268,6 @@ function openPresetEditor(type, presetId) {
             $(`#${prefix}-upload-placeholder`).hide();
         }
     } else {
-        // 新增模式
         $(`#${prefix}-editor-title`).text('新增' + (type === 'outfit' ? '服装' : '角色'));
         $(`#${prefix}-delete`).hide();
     }
@@ -268,7 +279,7 @@ function openPresetEditor(type, presetId) {
  * 从编辑器保存预设
  */
 function savePresetFromEditor(type) {
-    const prefix = `comfyui-gen-${type === 'outfit' ? 'outfit' : 'character'}`;
+    const prefix = `comfyui-gen-${type}`;
     const name = $(`#${prefix}-name`).val().trim();
     const positivePrompt = $(`#${prefix}-positive`).val().trim();
     const negativePrompt = $(`#${prefix}-negative`).val().trim();
@@ -276,16 +287,16 @@ function savePresetFromEditor(type) {
     const editId = $(`#${prefix}-edit-id`).val();
 
     if (!name) {
-        alert('请填写名称');
+        toastr.warning('请填写名称');
         return;
     }
 
     if (editId) {
-        // 更新
         updatePreset(type, editId, { name, positivePrompt, negativePrompt, thumbnail });
+        toastr.success('预设已更新');
     } else {
-        // 新建
         createPreset(type, { name, positivePrompt, negativePrompt, thumbnail });
+        toastr.success('预设已创建');
     }
 
     $(`#${prefix}-editor`).hide();
@@ -296,7 +307,7 @@ function savePresetFromEditor(type) {
  * 渲染预设网格
  */
 function renderPresetGrid(type) {
-    const gridId = type === 'outfit' ? 'comfyui-gen-outfit-grid' : 'comfyui-gen-character-grid';
+    const gridId = `comfyui-gen-${type}-grid`;
     const presets = getPresets(type);
     const active = getActivePreset(type);
     const grid = $(`#${gridId}`);
@@ -319,7 +330,6 @@ function renderPresetGrid(type) {
         </div>
     `).join(''));
 
-    // 点击选择预设
     grid.find('.comfyui-gen-preset-card').on('click', function (e) {
         if ($(e.target).closest('.comfyui-gen-preset-card-edit').length) return;
         const id = $(this).data('id');
@@ -327,7 +337,6 @@ function renderPresetGrid(type) {
         renderPresetGrid(type);
     });
 
-    // 编辑按钮
     grid.find('.comfyui-gen-preset-card-edit').on('click', function () {
         const id = $(this).data('id');
         openPresetEditor(type, id);
@@ -346,40 +355,114 @@ function loadSettingsToUI() {
     $('#comfyui-gen-cfg').val(s.default_params.cfg_scale);
     $('#comfyui-gen-width').val(s.default_params.width);
     $('#comfyui-gen-height').val(s.default_params.height);
-    $('#comfyui-gen-sampler').val(s.default_params.sampler_name);
-    $('#comfyui-gen-scheduler').val(s.default_params.scheduler);
     $('#comfyui-gen-seed').val(s.default_params.seed);
-    $('#comfyui-gen-model').val(s.default_params.model_name);
     $('#comfyui-gen-fixed-positive').val(s.fixed_positive_prompt);
     $('#comfyui-gen-fixed-negative').val(s.fixed_negative_prompt);
     $('#comfyui-gen-workflow').val(s.workflow_json);
     $('#comfyui-gen-interrogate-workflow').val(s.interrogate_workflow_json);
     $('#comfyui-gen-jpeg-compress').prop('checked', s.jpeg_compression);
     $('#comfyui-gen-fab-enabled').prop('checked', s.fab_enabled);
+
+    // 尝试自动匹配预设尺寸
+    const sizeKey = `${s.default_params.width}x${s.default_params.height}`;
+    if ($(`#comfyui-gen-size-preset option[value="${sizeKey}"]`).length) {
+        $('#comfyui-gen-size-preset').val(sizeKey);
+    }
 }
 
 /**
- * 测试 ComfyUI 连接
+ * 测试连接并刷新 ComfyUI 数据列表
  */
-async function testConnection() {
+async function testConnectionAndRefresh() {
     const url = extension_settings[extensionName].comfyui_url.replace(/\/$/, '');
     const status = $('#comfyui-gen-connection-status');
     const btn = $('#comfyui-gen-test-connection');
 
-    btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 测试中...').prop('disabled', true);
+    btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 连接中...').prop('disabled', true);
     status.text('').css('color', '');
 
     try {
-        const response = await fetch(`${url}/system_stats`, { signal: AbortSignal.timeout(5000) });
-        if (response.ok) {
-            status.text('✓ 连接成功').css('color', 'var(--cg-success)');
-        } else {
-            status.text('✗ 连接失败 (' + response.status + ')').css('color', 'var(--cg-danger)');
+        // 测试连接
+        const sysResp = await fetch(`${url}/system_stats`, { signal: AbortSignal.timeout(5000) });
+        if (!sysResp.ok) {
+            status.text('✗ 连接失败 (' + sysResp.status + ')').css('color', 'var(--cg-danger)');
+            return;
         }
+
+        status.text('✓ 已连接，正在加载数据...').css('color', 'var(--cg-success)');
+
+        // 获取 object_info（包含所有节点信息，从中提取模型、采样器等）
+        const infoResp = await fetch(`${url}/object_info`, { signal: AbortSignal.timeout(10000) });
+        if (infoResp.ok) {
+            const info = await infoResp.json();
+            populateDropdownsFromObjectInfo(info);
+        }
+
+        status.text('✓ 连接成功，数据已刷新').css('color', 'var(--cg-success)');
+        toastr.success('ComfyUI 数据已刷新');
     } catch (e) {
         status.text('✗ 无法连接: ' + e.message).css('color', 'var(--cg-danger)');
     } finally {
-        btn.html('<i class="fa-solid fa-plug"></i> 测试连接').prop('disabled', false);
+        btn.html('<i class="fa-solid fa-plug"></i> 测试并刷新').prop('disabled', false);
+    }
+}
+
+/**
+ * 从 ComfyUI object_info 中提取选项列表并填充下拉框
+ */
+function populateDropdownsFromObjectInfo(info) {
+    const s = extension_settings[extensionName];
+
+    // 模型（checkpoint）
+    const ckptNode = info['CheckpointLoaderSimple'] || info['CheckpointLoader'];
+    if (ckptNode?.input?.required?.ckpt_name?.[0]) {
+        populateSelect('#comfyui-gen-model', ckptNode.input.required.ckpt_name[0], s.default_params.model_name);
+    }
+
+    // 采样器
+    const samplerNode = info['KSampler'] || info['KSamplerAdvanced'];
+    if (samplerNode?.input?.required?.sampler_name?.[0]) {
+        populateSelect('#comfyui-gen-sampler', samplerNode.input.required.sampler_name[0], s.default_params.sampler_name);
+    }
+
+    // 调度器
+    if (samplerNode?.input?.required?.scheduler?.[0]) {
+        populateSelect('#comfyui-gen-scheduler', samplerNode.input.required.scheduler[0], s.default_params.scheduler);
+    }
+
+    // VAE
+    const vaeNode = info['VAELoader'];
+    if (vaeNode?.input?.required?.vae_name?.[0]) {
+        const vaeList = ['', ...vaeNode.input.required.vae_name[0]];
+        populateSelect('#comfyui-gen-vae', vaeList, s.default_params.vae, { '': '默认（随模型）' });
+    }
+
+    // CLIP
+    const clipNode = info['CLIPLoader'];
+    if (clipNode?.input?.required?.clip_name?.[0]) {
+        const clipList = ['', ...clipNode.input.required.clip_name[0]];
+        populateSelect('#comfyui-gen-clip', clipList, s.default_params.clip, { '': '默认' });
+    }
+
+    console.log('[ComfyUI Gen] 下拉数据已刷新');
+}
+
+/**
+ * 填充 select 下拉框
+ */
+function populateSelect(selector, options, currentValue, labelMap = {}) {
+    const select = $(selector);
+    select.empty();
+
+    for (const opt of options) {
+        const label = labelMap[opt] || opt || '默认';
+        const selected = opt === currentValue ? 'selected' : '';
+        select.append(`<option value="${opt}" ${selected}>${label}</option>`);
+    }
+
+    // 如果当前值不在选项中且不为空，追加一个
+    if (currentValue && !options.includes(currentValue)) {
+        select.prepend(`<option value="${currentValue}" selected>${currentValue}</option>`);
     }
 }
 
