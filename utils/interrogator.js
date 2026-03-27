@@ -3,7 +3,7 @@
  * 通过 ComfyUI 的 WD14 Tagger 或 CLIP Interrogator 节点实现
  */
 
-import { extension_settings } from '../../../../script.js';
+import { extension_settings } from '../../../../extensions.js';
 import { extensionName } from './config.js';
 import { uploadImageToComfyUI, replaceWorkflowPlaceholders } from './comfyui.js';
 

@@ -3,7 +3,7 @@
  * 负责：工作流占位符替换、生图请求、结果轮询、图片获取
  */
 
-import { extension_settings } from '../../../../script.js';
+import { extension_settings } from '../../../../extensions.js';
 import { extensionName } from './config.js';
 
 /**

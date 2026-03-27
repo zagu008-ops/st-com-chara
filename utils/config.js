@@ -3,7 +3,7 @@
  * 默认设置、事件常量、扩展名
  */
 
-export const extensionName = 'comfyui-gen';
+export const extensionName = 'st-com-chara';
 export const extensionFolderPath = `/scripts/extensions/third-party/${extensionName}`;
 
 // 事件名常量

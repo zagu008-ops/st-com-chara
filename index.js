@@ -3,8 +3,8 @@
  * 主入口文件：初始化、设置面板绑定、事件注册
  */
 
-import { extension_settings, saveSettingsDebounced } from '../../../extensions.js';
-import { eventSource, event_types } from '../../../../script.js';
+import { extension_settings } from '../../../extensions.js';
+import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
 import { extensionName, extensionFolderPath, defaultSettings } from './utils/config.js';
 import { buildPayload, sendToComfyUI } from './utils/comfyui.js';
 import {

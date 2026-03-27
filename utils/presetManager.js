@@ -3,7 +3,8 @@
  * 统一管理服装预设和角色预设的 CRUD 操作
  */
 
-import { extension_settings, saveSettingsDebounced } from '../../../../script.js';
+import { extension_settings } from '../../../../extensions.js';
+import { saveSettingsDebounced } from '../../../../../script.js';
 import { extensionName } from './config.js';
 
 /**

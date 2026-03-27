@@ -3,7 +3,8 @@
  * 可拖拽浮动按钮，展开菜单提供快捷操作
  */
 
-import { extension_settings, saveSettingsDebounced } from '../../../../script.js';
+import { extension_settings } from '../../../../extensions.js';
+import { saveSettingsDebounced } from '../../../../../script.js';
 import { extensionName } from './config.js';
 import { getPresets, getActivePreset, setActivePreset } from './presetManager.js';
 import { buildPayload, sendToComfyUI } from './comfyui.js';
