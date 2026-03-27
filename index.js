@@ -29,9 +29,14 @@ async function init() {
         ...extension_settings[extensionName],
     };
 
-    // 加载设置面板 HTML
-    const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
-    $('#extensions_settings').append(settingsHtml);
+    // 加载设置面板 HTML（追加到 body，模态框 position:fixed 不依赖父容器）
+    try {
+        const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
+        $('body').append(settingsHtml);
+        console.log('[ComfyUI Gen] 设置面板 HTML 加载成功');
+    } catch (e) {
+        console.error('[ComfyUI Gen] 设置面板 HTML 加载失败:', e);
+    }
 
     // 绑定设置面板事件
     bindSettingsEvents();
@@ -133,6 +138,9 @@ function bindSettingsEvents() {
 
     // 测试连接
     $('#comfyui-gen-test-connection').on('click', testConnection);
+
+    // 更新插件
+    $('#comfyui-gen-update-btn').on('click', updateExtension);
 
     // === 服装预设 ===
     bindPresetEvents('outfit');
@@ -372,6 +380,39 @@ async function testConnection() {
         status.text('✗ 无法连接: ' + e.message).css('color', 'var(--cg-danger)');
     } finally {
         btn.html('<i class="fa-solid fa-plug"></i> 测试连接').prop('disabled', false);
+    }
+}
+
+/**
+ * 从 GitHub 更新插件
+ */
+async function updateExtension() {
+    const btn = $('#comfyui-gen-update-btn');
+    const originalHtml = btn.html();
+    btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 更新中...').prop('disabled', true);
+
+    try {
+        const response = await fetch('/api/extensions/install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: 'https://github.com/zagu008-ops/st-com-chara',
+                global: false,
+            }),
+        });
+
+        if (response.ok) {
+            toastr.success('更新成功，即将刷新页面...');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            const errText = await response.text();
+            toastr.error('更新失败: ' + errText);
+        }
+    } catch (e) {
+        console.error('[ComfyUI Gen] 更新失败:', e);
+        toastr.error('更新失败: ' + e.message);
+    } finally {
+        btn.html(originalHtml).prop('disabled', false);
     }
 }
 

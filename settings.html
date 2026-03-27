@@ -4,13 +4,20 @@
         <div class="comfyui-gen-modal-content">
             <!-- 头部 -->
             <div class="comfyui-gen-modal-header">
-                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.0.0</span></h2>
-                <span id="comfyui-gen-modal-close" class="comfyui-gen-modal-close">&times;</span>
+                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.0.0</span>
+                </h2>
+                <div class="comfyui-gen-header-actions">
+                    <button id="comfyui-gen-update-btn" class="comfyui-gen-btn secondary" title="从 GitHub 拉取最新代码">
+                        <i class="fa-solid fa-rotate"></i> 更新插件
+                    </button>
+                    <span id="comfyui-gen-modal-close" class="comfyui-gen-modal-close">&times;</span>
+                </div>
             </div>
 
             <!-- Tab 导航 -->
             <div class="comfyui-gen-tabs">
-                <button class="comfyui-gen-tab active" data-tab="comfyui"><i class="fa-solid fa-server"></i> ComfyUI</button>
+                <button class="comfyui-gen-tab active" data-tab="comfyui"><i class="fa-solid fa-server"></i>
+                    ComfyUI</button>
                 <button class="comfyui-gen-tab" data-tab="outfits"><i class="fa-solid fa-shirt"></i> 服装管理</button>
                 <button class="comfyui-gen-tab" data-tab="characters"><i class="fa-solid fa-user"></i> 角色管理</button>
             </div>
@@ -59,7 +66,8 @@
                             </div>
                             <div class="comfyui-gen-field">
                                 <label for="comfyui-gen-height">高度</label>
-                                <input type="number" id="comfyui-gen-height" min="64" max="4096" step="64" value="768" />
+                                <input type="number" id="comfyui-gen-height" min="64" max="4096" step="64"
+                                    value="768" />
                             </div>
                             <div class="comfyui-gen-field">
                                 <label for="comfyui-gen-sampler">采样器</label>
@@ -97,11 +105,13 @@
                         <h3>固定提示词</h3>
                         <div class="comfyui-gen-field">
                             <label for="comfyui-gen-fixed-positive">固定正面提示词</label>
-                            <textarea id="comfyui-gen-fixed-positive" rows="2" placeholder="masterpiece, best quality"></textarea>
+                            <textarea id="comfyui-gen-fixed-positive" rows="2"
+                                placeholder="masterpiece, best quality"></textarea>
                         </div>
                         <div class="comfyui-gen-field">
                             <label for="comfyui-gen-fixed-negative">固定负面提示词</label>
-                            <textarea id="comfyui-gen-fixed-negative" rows="2" placeholder="worst quality, low quality"></textarea>
+                            <textarea id="comfyui-gen-fixed-negative" rows="2"
+                                placeholder="worst quality, low quality"></textarea>
                         </div>
                     </div>
 
@@ -112,14 +122,16 @@
                                 生图工作流 JSON
                                 <small>从 ComfyUI 导出 API 格式工作流，使用 %prompt%, %negative_prompt%, "%steps%" 等占位符</small>
                             </label>
-                            <textarea id="comfyui-gen-workflow" rows="8" class="comfyui-gen-code" placeholder='粘贴 ComfyUI API JSON 工作流...'></textarea>
+                            <textarea id="comfyui-gen-workflow" rows="8" class="comfyui-gen-code"
+                                placeholder='粘贴 ComfyUI API JSON 工作流...'></textarea>
                         </div>
                         <div class="comfyui-gen-field">
                             <label for="comfyui-gen-interrogate-workflow">
                                 反推工作流 JSON <span class="comfyui-gen-optional">(可选)</span>
                                 <small>用于图片反推提示词的工作流，留空使用默认 WD14 Tagger 工作流</small>
                             </label>
-                            <textarea id="comfyui-gen-interrogate-workflow" rows="4" class="comfyui-gen-code" placeholder="留空使用默认 WD14 Tagger 工作流"></textarea>
+                            <textarea id="comfyui-gen-interrogate-workflow" rows="4" class="comfyui-gen-code"
+                                placeholder="留空使用默认 WD14 Tagger 工作流"></textarea>
                         </div>
                     </div>
 
@@ -164,7 +176,8 @@
                         </div>
                         <div class="comfyui-gen-field">
                             <label>正面提示词</label>
-                            <textarea id="comfyui-gen-outfit-positive" rows="3" placeholder="white shirt, sailor collar, blue pleated skirt"></textarea>
+                            <textarea id="comfyui-gen-outfit-positive" rows="3"
+                                placeholder="white shirt, sailor collar, blue pleated skirt"></textarea>
                         </div>
                         <div class="comfyui-gen-field">
                             <label>负面提示词</label>
@@ -173,14 +186,17 @@
                         <div class="comfyui-gen-field">
                             <label>参考图片（可选）</label>
                             <div class="comfyui-gen-image-upload-area" id="comfyui-gen-outfit-upload">
-                                <input type="file" id="comfyui-gen-outfit-image" accept="image/*" style="display:none" />
+                                <input type="file" id="comfyui-gen-outfit-image" accept="image/*"
+                                    style="display:none" />
                                 <div class="comfyui-gen-upload-placeholder" id="comfyui-gen-outfit-upload-placeholder">
                                     <i class="fa-solid fa-cloud-arrow-up"></i>
                                     <span>点击上传图片</span>
                                 </div>
-                                <img id="comfyui-gen-outfit-preview" class="comfyui-gen-upload-preview" style="display:none" />
+                                <img id="comfyui-gen-outfit-preview" class="comfyui-gen-upload-preview"
+                                    style="display:none" />
                             </div>
-                            <button id="comfyui-gen-outfit-interrogate" class="comfyui-gen-btn secondary" style="margin-top: 8px;">
+                            <button id="comfyui-gen-outfit-interrogate" class="comfyui-gen-btn secondary"
+                                style="margin-top: 8px;">
                                 <i class="fa-solid fa-magnifying-glass"></i> 反推提示词
                             </button>
                         </div>
@@ -224,7 +240,8 @@
                         </div>
                         <div class="comfyui-gen-field">
                             <label>正面提示词</label>
-                            <textarea id="comfyui-gen-character-positive" rows="3" placeholder="1girl, long hair, blue eyes, ..."></textarea>
+                            <textarea id="comfyui-gen-character-positive" rows="3"
+                                placeholder="1girl, long hair, blue eyes, ..."></textarea>
                         </div>
                         <div class="comfyui-gen-field">
                             <label>负面提示词</label>
@@ -233,14 +250,18 @@
                         <div class="comfyui-gen-field">
                             <label>参考图片（可选）</label>
                             <div class="comfyui-gen-image-upload-area" id="comfyui-gen-character-upload">
-                                <input type="file" id="comfyui-gen-character-image" accept="image/*" style="display:none" />
-                                <div class="comfyui-gen-upload-placeholder" id="comfyui-gen-character-upload-placeholder">
+                                <input type="file" id="comfyui-gen-character-image" accept="image/*"
+                                    style="display:none" />
+                                <div class="comfyui-gen-upload-placeholder"
+                                    id="comfyui-gen-character-upload-placeholder">
                                     <i class="fa-solid fa-cloud-arrow-up"></i>
                                     <span>点击上传图片</span>
                                 </div>
-                                <img id="comfyui-gen-character-preview" class="comfyui-gen-upload-preview" style="display:none" />
+                                <img id="comfyui-gen-character-preview" class="comfyui-gen-upload-preview"
+                                    style="display:none" />
                             </div>
-                            <button id="comfyui-gen-character-interrogate" class="comfyui-gen-btn secondary" style="margin-top: 8px;">
+                            <button id="comfyui-gen-character-interrogate" class="comfyui-gen-btn secondary"
+                                style="margin-top: 8px;">
                                 <i class="fa-solid fa-magnifying-glass"></i> 反推提示词
                             </button>
                         </div>
@@ -248,7 +269,8 @@
                             <button id="comfyui-gen-character-save" class="comfyui-gen-btn primary">
                                 <i class="fa-solid fa-check"></i> 保存
                             </button>
-                            <button id="comfyui-gen-character-delete" class="comfyui-gen-btn danger" style="display:none">
+                            <button id="comfyui-gen-character-delete" class="comfyui-gen-btn danger"
+                                style="display:none">
                                 <i class="fa-solid fa-trash"></i> 删除
                             </button>
                         </div>
