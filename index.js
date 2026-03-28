@@ -170,6 +170,10 @@ function bindSettingsEvents() {
     // 更新插件
     $('#comfyui-gen-update-btn').on('click', updateExtension);
 
+    // LLM & ComfyUI 反推测试连接
+    $('#comfyui-gen-test-llm-btn').on('click', testLLMConnection);
+    $('#comfyui-gen-test-comfyui-interrogate-btn').on('click', testComfyUIInterrogateConnection);
+
     // 提示词预设 UI 绑定
     bindPromptPresetEvents();
 
@@ -626,6 +630,93 @@ async function testConnectionAndRefresh() {
         status.text('✗ 无法连接: ' + e.message).css('color', 'var(--cg-danger)');
     } finally {
         btn.html('<i class="fa-solid fa-plug"></i> 测试并刷新').prop('disabled', false);
+    }
+}
+
+/**
+ * 测试 LLM 反推接口连接
+ */
+async function testLLMConnection() {
+    const s = extension_settings[extensionName];
+    const rawUrl = s.llm_interrogate_url || '';
+    const apiKey = s.llm_interrogate_key || '';
+    const model = s.llm_interrogate_model || '';
+    const btn = $('#comfyui-gen-test-llm-btn');
+
+    if (!rawUrl || !model) {
+        toastr.warning('请先填写 LLM 的 API 地址和模型名称', 'LLM 连接测试');
+        return;
+    }
+
+    const apiUrl = rawUrl.replace(/\/$/, '');
+    const endpoint = apiUrl.endsWith('/chat/completions')
+        ? apiUrl
+        : `${apiUrl}/chat/completions`;
+
+    const originalText = btn.html();
+    btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 测试中...').prop('disabled', true);
+
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+        const body = {
+            model: model,
+            messages: [{ role: 'user', content: 'hello' }],
+            max_tokens: 10
+        };
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(15000)
+        });
+
+        if (response.ok) {
+            toastr.success('LLM 接口连接成功！模型响应正常。', 'LLM 连接测试');
+        } else {
+            const err = await response.text();
+            toastr.error(`连接失败 (${response.status}): ${err.substring(0, 100)}`, 'LLM 连接测试');
+        }
+    } catch (e) {
+        console.error('[ComfyUI Gen] LLM 测试失败:', e);
+        toastr.error('请求出错: ' + e.message, 'LLM 连接测试');
+    } finally {
+        btn.html(originalText).prop('disabled', false);
+    }
+}
+
+/**
+ * 测试 ComfyUI 反推接口独立连接
+ */
+async function testComfyUIInterrogateConnection() {
+    const s = extension_settings[extensionName];
+    const url = s.interrogate_url
+        ? s.interrogate_url.replace(/\/$/, '')
+        : s.comfyui_url.replace(/\/$/, '');
+
+    if (!url) {
+        toastr.warning('请先配置 ComfyUI 主地址或独立反推地址', 'ComfyUI反推测试');
+        return;
+    }
+
+    const btn = $('#comfyui-gen-test-comfyui-interrogate-btn');
+    const originalText = btn.html();
+    btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 测试中...').prop('disabled', true);
+
+    try {
+        const response = await fetch(`${url}/system_stats`, { signal: AbortSignal.timeout(5000) });
+        if (response.ok) {
+            toastr.success(`ComfyUI 节点连接成功！\n地址: ${url}`, 'ComfyUI反推测试');
+        } else {
+            toastr.error(`连接失败 (${response.status})`, 'ComfyUI反推测试');
+        }
+    } catch (e) {
+        console.error('[ComfyUI Gen] ComfyUI 反推测试失败:', e);
+        toastr.error('请求出错: ' + e.message, 'ComfyUI反推测试');
+    } finally {
+        btn.html(originalText).prop('disabled', false);
     }
 }
 

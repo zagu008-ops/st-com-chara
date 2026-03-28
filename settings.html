@@ -4,7 +4,7 @@
         <div class="comfyui-gen-modal-content">
             <!-- 头部 -->
             <div class="comfyui-gen-modal-header">
-                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.3.1</span>
+                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.3.2</span>
                 </h2>
                 <div class="comfyui-gen-header-actions">
                     <button id="comfyui-gen-update-btn" class="comfyui-gen-btn secondary" title="从 GitHub 拉取最新代码">
@@ -295,6 +295,11 @@
                             <textarea id="comfyui-gen-llm-interrogate-prompt" rows="4"
                                 placeholder="Please analyze this image and generate Stable Diffusion style tags..."></textarea>
                         </div>
+                        <div class="comfyui-gen-field">
+                            <button id="comfyui-gen-test-llm-btn" class="comfyui-gen-btn secondary">
+                                <i class="fa-solid fa-plug"></i> 测试 LLM 连接
+                            </button>
+                        </div>
                     </div>
 
                     <!-- ComfyUI 反推配置 -->
@@ -313,6 +318,11 @@
                             </label>
                             <textarea id="comfyui-gen-interrogate-workflow" rows="4" class="comfyui-gen-code"
                                 placeholder="留空使用默认 WD14 Tagger 工作流"></textarea>
+                        </div>
+                        <div class="comfyui-gen-field">
+                            <button id="comfyui-gen-test-comfyui-interrogate-btn" class="comfyui-gen-btn secondary">
+                                <i class="fa-solid fa-plug"></i> 测试 ComfyUI 反推连接
+                            </button>
                         </div>
                     </div>
                 </div>
