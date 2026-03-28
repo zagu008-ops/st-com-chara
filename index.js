@@ -86,7 +86,7 @@ function bindSettingsEvents() {
         { id: '#comfyui-gen-workflow', key: 'workflow_json' },
         { id: '#comfyui-gen-interrogate-workflow', key: 'interrogate_workflow_json' },
         { id: '#comfyui-gen-positive-quality', key: 'positive_quality_preset' },
-        { id: '#comfyui-gen-negative-quality', key: 'negative_quality_preset' },
+        { id: '#comfyui-gen-interrogate-url', key: 'interrogate_url' },
         { id: '#comfyui-gen-llm-interrogate-url', key: 'llm_interrogate_url' },
         { id: '#comfyui-gen-llm-interrogate-key', key: 'llm_interrogate_key' },
         { id: '#comfyui-gen-llm-interrogate-model', key: 'llm_interrogate_model' },

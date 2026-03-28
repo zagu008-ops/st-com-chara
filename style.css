@@ -191,6 +191,7 @@
 }
 
 .comfyui-gen-field input[type="text"],
+.comfyui-gen-field input[type="password"],
 .comfyui-gen-field input[type="number"],
 .comfyui-gen-field textarea,
 .comfyui-gen-field select {
