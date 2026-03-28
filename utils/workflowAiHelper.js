@@ -1,7 +1,7 @@
 /**
- * ComfyUI Gen - 工作流 AI 助手模块
- * 负责读取工作流 JSON，提取关键节点发送给 LLM，
- * 利用 LLM 推理出需要替换的节点 ID，并自动格式化 JSON 占位符。
+ * ComfyUI Gen - 工作流 AI 助手模块 (Interactive Dialog)
+ * 负责读取工作流 JSON，与用户对话，提取关键节点发送给 LLM，
+ * 解析 LLM 指令，并自动格式化 JSON 占位符。
  */
 
 import { extension_settings } from '../../../../extensions.js';
@@ -9,6 +9,8 @@ import { extensionName } from './config.js';
 import { callLLM } from './promptGen.js';
 
 const LOG_PREFIX = '[ComfyUI Gen][AI Helper]';
+
+let chatHistory = [];
 
 /**
  * 获取当前设置
@@ -19,37 +21,54 @@ function getSettings() {
 
 /**
  * 精简工作流 JSON 给 LLM
- * 只提取包含文本的节点（如 CLIPTextEncode）和可能包含数值的节点（如 KSampler/EmptyLatentImage）
+ * 兼容 API 格式 `{"7": {...}}` 和 Save 格式 `{"nodes": [{"id": 7, ...}]}`
  */
 function extractImportantNodes(workflowObj) {
     const importantNodes = {};
     let nodeCount = 0;
 
-    for (const [nodeId, nodeData] of Object.entries(workflowObj)) {
-        if (!nodeData || typeof nodeData !== 'object' || !nodeData.class_type) continue;
+    // 适配 Save Format (含有 nodes 数组)
+    let nodesIterable = [];
+    if (workflowObj.nodes && Array.isArray(workflowObj.nodes)) {
+        nodesIterable = workflowObj.nodes.map(n => [n.id || n._name, n]);
+    } else {
+        nodesIterable = Object.entries(workflowObj);
+    }
 
-        const type = nodeData.class_type;
+    for (const [nodeId, nodeData] of nodesIterable) {
+        if (!nodeData || typeof nodeData !== 'object' || (!nodeData.class_type && !nodeData.type)) continue;
+
+        const type = nodeData.class_type || nodeData.type;
+        // Save format uses nodeData.widgets_values (array) mostly, but API uses inputs (object)
+        // Let's try to extract from inputs first (API format)
         const inputs = nodeData.inputs || {};
 
-        // 我们关心文本输入节点和采样/潜空间节点
         let isImportant = false;
         const extractedDesc = { class_type: type };
 
-        // 提取文本（寻找可能输入 prompt 的地方）
+        // API Format text extraction
         if (typeof inputs.text === 'string' && inputs.text.length > 0) {
             extractedDesc.text = inputs.text.substring(0, 150) + (inputs.text.length > 150 ? '...' : '');
             isImportant = true;
         }
 
-        // 提取宽/高/种子/步数/CFG
-        if (inputs.width !== undefined) { extractedDesc.width = inputs.width; isImportant = true; }
-        if (inputs.height !== undefined) { extractedDesc.height = inputs.height; isImportant = true; }
-        if (inputs.seed !== undefined || inputs.noise_seed !== undefined) {
-            extractedDesc.seed = inputs.seed !== undefined ? inputs.seed : inputs.noise_seed;
-            isImportant = true;
+        // Save Format text extraction (usually strings in widgets_values)
+        if (nodeData.widgets_values && Array.isArray(nodeData.widgets_values)) {
+            const textVals = nodeData.widgets_values.filter(v => typeof v === 'string' && v.length > 5);
+            if (textVals.length > 0) {
+                extractedDesc.text_values = textVals.map(v => v.substring(0, 100));
+                isImportant = true;
+            }
         }
-        if (inputs.steps !== undefined) { extractedDesc.steps = inputs.steps; isImportant = true; }
-        if (inputs.cfg !== undefined) { extractedDesc.cfg = inputs.cfg; isImportant = true; }
+
+        // Number extraction (Width/Height/Seed/Steps/Cfg)
+        const checkFields = ['width', 'height', 'seed', 'noise_seed', 'steps', 'cfg'];
+        checkFields.forEach(f => {
+            if (inputs[f] !== undefined) {
+                extractedDesc[f] = inputs[f];
+                isImportant = true;
+            }
+        });
 
         if (isImportant) {
             importantNodes[nodeId] = extractedDesc;
@@ -61,131 +80,222 @@ function extractImportantNodes(workflowObj) {
 }
 
 /**
- * 构建系统系统提示词
+ * 构建系统提示词
  */
-function buildAssistantSystemPrompt() {
-    return `你是一个 ComfyUI 工作流配置助手。
-你的任务是阅读用户提取的 ComfyUI 工作流关键节点列表，分析并找出对应的节点ID，以便后续用作字符串占位符替换。
+function buildAssistantSystemPrompt(importantNodes) {
+    return `你是一个 ComfyUI 工作流配置助手。你需要通过对话帮助用户修改他们的工作流 JSON，使其适配当前的自动生图插件。
+当前插件支持以下关键占位符：
+- %prompt% （正向提示词）
+- %negative_prompt% （反向提示词）
+- %width% （宽度）
+- %height% （高度）
+- %steps% （步数，注意输出需保留双引号，如 "%steps%"）
+- %cfg_scale%
+- %seed%
 
-工作流节点列表以 JSON 格式提供。
+以下是用户当前工作流提取出的【关键节点】：
+${JSON.stringify(importantNodes, null, 2)}
 
-你需要返回一个 JSON 对象，必须精确对应以下结构，如果找不到对应的节点，请将该字段设为 null。
+【你的任务】
+1. 分析用户的意图，找出对应的节点 ID。
+2. 如果用户要求“一键替换”或“修复工作流”，请在回复文字的最后，输出一个 JSON 代码块，表示你对工作流的修改指令。插件会自动解析该代码块并执行修改。
+3. 如果只是询问信息，则直接用自然语言回答。
 
-【需要填写的字段】
-"positive_prompt_node": "正向提示词文本节点的ID（通常 class_type 为 CLIPTextEncode，且有较多正面描述词）",
-"negative_prompt_node": "负向提示词文本节点的ID（通常 class_type 为 CLIPTextEncode，且包含 worst quality 等负面词）",
-"width_node": "定义图片宽度的节点ID（通常在 EmptyLatentImage 里包含 width）",
-"height_node": "定义图片高度的节点ID（通常在 EmptyLatentImage 里包含 height）",
-"seed_node": "定义随机种子的节点ID（通常在 KSampler 里包含 seed 或 noise_seed）",
-"steps_node": "定义采样步数的节点ID（通常在 KSampler 里）",
-"cfg_node": "定义 CFG 比例的节点ID（通常在 KSampler 里）"
+【JSON 修改指令块格式要求】
+如果需要修改节点，请必须使用以下 markdown 格式输出指令块：
+\`\`\`json
+{
+  "replacements": [
+    { "node_id": "7", "target": "text", "value": "%prompt%" },
+    { "node_id": "8", "target": "text", "value": "%negative_prompt%" },
+    { "node_id": "3", "target": "seed", "value": "%seed%" }
+  ]
+}
+\`\`\`
 
-返回纯 JSON，不要有任何 Markdown 代码块包裹，也不要有说明文字。`;
+注意：如果是 Save 格式的节点 (没有具体的 target 属性名，只有 list 时)，请填 target 为 "widget_text"（助手会自动去替换该节点中值为长文本的字段）。
+回复要简明扼要，让用户知道你做了什么。`;
 }
 
 /**
- * 调用 AI 助手进行智能格式化
- * @param {string} rawJsonStr 原始工作流 JSON 字符串
- * @returns {Promise<string|null>} 替换好的 JSON 字符串，如果失败返回 null
+ * 追加气泡
  */
-export async function autoFormatWorkflowWithAI(rawJsonStr) {
+function appendMessage(sender, text) {
+    const chatBody = $('#cg-ai-chat-body');
+    const msgDiv = $('<div class="cg-ai-msg"></div>').addClass(sender === 'ai' ? 'system-msg' : 'user-msg');
+    const avatar = $('<div class="msg-avatar"></div>').html(sender === 'ai' ? '<i class="fa-solid fa-robot"></i>' : '<i class="fa-solid fa-user"></i>');
+
+    // 渲染 Markdown / 转义
+    let formattedText = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>')
+        .replace(/```json([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+
+    const content = $('<div class="msg-content"></div>').html(formattedText);
+    msgDiv.append(avatar).append(content);
+    chatBody.append(msgDiv);
+    chatBody.scrollTop(chatBody[0].scrollHeight);
+}
+
+/**
+ * 解析并执行 LLM 返回的 JSON 指令
+ */
+function executeAiCommands(jsonText, workflowStr) {
     try {
-        if (!rawJsonStr || !rawJsonStr.trim()) {
-            throw new Error('工作流为空');
-        }
+        let workflowObj = JSON.parse(workflowStr);
+        let cmdObj = JSON.parse(jsonText);
+        let changed = false;
 
-        let workflowObj;
-        try {
-            workflowObj = JSON.parse(rawJsonStr);
-        } catch (e) {
-            throw new Error('解析原始 JSON 失败，请检查格式');
-        }
+        if (cmdObj.replacements && Array.isArray(cmdObj.replacements)) {
+            // 支持 API 格式和 Save 格式
+            const isSaveFormat = workflowObj.nodes && Array.isArray(workflowObj.nodes);
 
-        // 1. 提取关键节点
-        console.log(`${LOG_PREFIX} 正在提取关键节点...`);
-        const { importantNodes, nodeCount } = extractImportantNodes(workflowObj);
+            for (const rep of cmdObj.replacements) {
+                const id = String(rep.node_id);
+                let targetNode = null;
 
-        if (nodeCount === 0) {
-            throw new Error('未找到任何可分析的节点 (CLIPTextEncode 或 KSampler)');
-        }
+                if (isSaveFormat) {
+                    targetNode = workflowObj.nodes.find(n => String(n.id) === id || String(n._name) === id);
+                } else {
+                    targetNode = workflowObj[id];
+                }
 
-        console.log(`${LOG_PREFIX} 提取到 ${nodeCount} 个关键节点，开始请求 LLM...`);
-
-        // 2. 准备请求
-        const s = getSettings();
-        if (!s.ai_url || !s.ai_model) {
-            throw new Error('未配置 LLM (请先配置全局的大语言模型 API)');
-        }
-
-        const systemPrompt = buildAssistantSystemPrompt();
-        const userPrompt = `以下是工作流的关键节点列表：\n${JSON.stringify(importantNodes, null, 2)}`;
-
-        // 3. 调用 LLM
-        const analysisResultStr = await callLLM(systemPrompt, userPrompt, 800, 0.1);
-
-        if (!analysisResultStr) {
-            throw new Error('LLM 返回为空');
-        }
-
-        console.log(`${LOG_PREFIX} LLM 返回结果:`, analysisResultStr);
-
-        // 4. 解析结果
-        let analysisObj;
-        try {
-            // 清理可能包含的 markdown 标签
-            let cleanStr = analysisResultStr.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
-            analysisObj = JSON.parse(cleanStr);
-        } catch (e) {
-            throw new Error('解析 LLM 返回的 JSON 失败');
-        }
-
-        console.log(`${LOG_PREFIX} 解析 LLM 判断成功:`, analysisObj);
-
-        // 5. 执行替换
-        // 注意：因为我们要保留原始字符串格式（为了 sendToComfyUI 的占位符替换能正常工作），
-        // 最安全的做法是在 JSON string 上做正则或 replace，而不是在 object 上操作后 stringify (因为原始 JSON 里的占位符会被当成字符串对待，
-        // 在 comfyui.js 的 replaceWorkflowPlaceholders 时，%prompt% 是不用加双引号的，而 %steps% 是带双引号的 "%steps%")
-
-        // 简单修改 object，然后再 stringify
-        // 正向提示词
-        if (analysisObj.positive_prompt_node && workflowObj[analysisObj.positive_prompt_node]) {
-            workflowObj[analysisObj.positive_prompt_node].inputs.text = '%prompt%';
-        }
-        // 负向提示词
-        if (analysisObj.negative_prompt_node && workflowObj[analysisObj.negative_prompt_node]) {
-            workflowObj[analysisObj.negative_prompt_node].inputs.text = '%negative_prompt%';
-        }
-
-        // 数值型替换（为了配合 comfyui.js 的字符串替换 `"%steps%"`，这里需要转成特定字符串）
-        const numVars = [
-            { key: 'width_node', field: 'width', placeholder: '%width%' },
-            { key: 'height_node', field: 'height', placeholder: '%height%' },
-            { key: 'steps_node', field: 'steps', placeholder: '%steps%' },
-            { key: 'cfg_node', field: 'cfg', placeholder: '%cfg_scale%' },
-            { key: 'seed_node', field: 'seed', placeholder: '%seed%' },
-            { key: 'seed_node', field: 'noise_seed', placeholder: '%seed%' }
-        ];
-
-        for (const v of numVars) {
-            const nodeId = analysisObj[v.key];
-            if (nodeId && workflowObj[nodeId] && workflowObj[nodeId].inputs) {
-                // 如果节点存在且有这个字段，则将该数值替换为一个独一无二的 "占位符字符串"
-                if (workflowObj[nodeId].inputs[v.field] !== undefined) {
-                    workflowObj[nodeId].inputs[v.field] = v.placeholder;
+                if (targetNode) {
+                    // API Format
+                    if (targetNode.inputs && rep.target !== 'widget_text') {
+                        targetNode.inputs[rep.target] = rep.value;
+                        changed = true;
+                    }
+                    // Save Format (widgets_values)
+                    else if (targetNode.widgets_values && Array.isArray(targetNode.widgets_values)) {
+                        for (let i = 0; i < targetNode.widgets_values.length; i++) {
+                            if (typeof targetNode.widgets_values[i] === 'string' && targetNode.widgets_values[i].length > 5) {
+                                targetNode.widgets_values[i] = rep.value;
+                                changed = true;
+                                break; // Only replace the first plausible long text
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // 把对象转回 JSON 字符串
-        let finalJsonStr = JSON.stringify(workflowObj, null, 2);
+        if (changed) {
+            return JSON.stringify(workflowObj, null, 2);
+        }
+        return null; // 没有修改
+    } catch (e) {
+        console.error('执行 AI 命令失败:', e);
+        return null;
+    }
+}
 
-        // 注意，由于 comfyui.js 的旧逻辑，数字类型的占位符期望是 `"%steps%"` 这种包含双引号的模式被替换为实际数字。
-        // json.stringify 会把 `%steps%` 变成 `"%steps%"`，这正是 comfyui.js 期待的格式！
+/**
+ * 发送消息并获取回复
+ */
+async function sendChatMessage(userMessage) {
+    const s = getSettings();
+    if (!s.ai_url || !s.ai_model) {
+        toastr.error('未配置 LLM (请先配置全局的大语言模型 API)', 'ComfyUI AI 助手');
+        return;
+    }
 
-        return finalJsonStr;
+    const workflowStr = $('#comfyui-gen-workflow').val();
+    if (!workflowStr || !workflowStr.trim()) {
+        toastr.warning('请先在左侧输入框填入 ComfyUI 工作流 JSON', 'ComfyUI AI 助手');
+        return;
+    }
+
+    let workflowObj;
+    try {
+        workflowObj = JSON.parse(workflowStr);
+    } catch (e) {
+        toastr.error('解析原始工作流 JSON 失败，请检查格式是否正确', 'ComfyUI AI 助手');
+        return;
+    }
+
+    const { importantNodes, nodeCount } = extractImportantNodes(workflowObj);
+    if (nodeCount === 0) {
+        toastr.error('未找到任何可分别的节点 (CLIPTextEncode 或 KSampler等)', 'ComfyUI AI 助手');
+        return;
+    }
+
+    appendMessage('user', userMessage);
+    $('#cg-ai-chat-input').val('');
+
+    chatHistory.push({ role: 'user', content: userMessage });
+    if (chatHistory.length > 10) chatHistory = chatHistory.slice(chatHistory.length - 10);
+
+    const typingMsg = $('<div class="cg-ai-msg system-msg" id="cg-ai-typing"><div class="msg-avatar"><i class="fa-solid fa-robot"></i></div><div class="msg-content"><div class="cg-ai-typing"><span></span><span></span><span></span></div></div></div>');
+    $('#cg-ai-chat-body').append(typingMsg);
+    $('#cg-ai-chat-body').scrollTop($('#cg-ai-chat-body')[0].scrollHeight);
+    $('#cg-ai-chat-send').prop('disabled', true);
+
+    try {
+        const systemPrompt = buildAssistantSystemPrompt(importantNodes);
+
+        let fullUserPrompt = "";
+        for (let i = 0; i < chatHistory.length - 1; i++) {
+            fullUserPrompt += `[${chatHistory[i].role.toUpperCase()}]\n${chatHistory[i].content}\n\n`;
+        }
+        fullUserPrompt += `[CURRENT USER MESSAGE]\n${userMessage}`;
+
+        const aiResponse = await callLLM(systemPrompt, fullUserPrompt, 800, 0.7);
+
+        if (!aiResponse) throw new Error('LLM 返回为空');
+
+        chatHistory.push({ role: 'assistant', content: aiResponse });
+
+        // 检查是否有 json 命令块
+        const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)```/i);
+        if (jsonMatch) {
+            const newWorkflowStr = executeAiCommands(jsonMatch[1], workflowStr);
+            if (newWorkflowStr) {
+                $('#comfyui-gen-workflow').val(newWorkflowStr).trigger('input');
+                toastr.success('已自动应用工作流修改', 'ComfyUI AI 助手');
+            }
+        }
+
+        typingMsg.remove();
+        appendMessage('ai', aiResponse);
 
     } catch (error) {
-        console.error(`${LOG_PREFIX} 发生错误:`, error);
-        throw error;
+        console.error(error);
+        typingMsg.remove();
+        appendMessage('ai', '❌ 发生错误: ' + error.message);
+    } finally {
+        $('#cg-ai-chat-send').prop('disabled', false);
     }
+}
+
+/**
+ * 初始化 AI 助手弹窗与事件
+ */
+export function initAiHelperEvents() {
+    // 绑定开弹窗按钮
+    $('#comfyui-gen-workflow-ai-helper').off('click').on('click', function () {
+        $('#cg-ai-dialog').css('display', 'flex');
+        setTimeout(() => $('#cg-ai-chat-input').focus(), 100);
+    });
+
+    // 关闭弹窗
+    $('#cg-ai-dialog-close').off('click').on('click', function () {
+        $('#cg-ai-dialog').hide();
+    });
+
+    // 发送按钮
+    $('#cg-ai-chat-send').off('click').on('click', function () {
+        const text = $('#cg-ai-chat-input').val().trim();
+        if (text) {
+            sendChatMessage(text);
+        }
+    });
+
+    // 回车发送
+    $('#cg-ai-chat-input').off('keydown').on('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            $('#cg-ai-chat-send').click();
+        }
+    });
 }

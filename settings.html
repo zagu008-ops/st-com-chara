@@ -535,3 +535,23 @@
         </div>
     </div>
 </div>
+
+<!-- ========== AI Assistant Dialog ========== -->
+<div id="cg-ai-dialog" class="cg-ai-dialog" style="display: none;">
+    <div class="cg-ai-dialog-header">
+        <h3><i class="fa-solid fa-robot"></i> AI 配置助手</h3>
+        <span id="cg-ai-dialog-close" class="cg-ai-dialog-close"><i class="fa-solid fa-xmark"></i></span>
+    </div>
+    <div id="cg-ai-chat-body" class="cg-ai-chat-body">
+        <div class="cg-ai-msg system-msg">
+            <div class="msg-avatar"><i class="fa-solid fa-robot"></i></div>
+            <div class="msg-content">你好！我是 ComfyUI Gen 的 AI 配置助手。我可以帮你分析工作流 JSON，自动修复占位符 (如 %prompt%, %width%)。
+                <br><br>你可以对我说：“帮我一键替换所有必需的占位符”。
+            </div>
+        </div>
+    </div>
+    <div class="cg-ai-dialog-footer">
+        <textarea id="cg-ai-chat-input" placeholder="输入你想让助手做的事... (Enter 发送)" rows="1"></textarea>
+        <button id="cg-ai-chat-send" class="cg-ai-btn"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+</div>

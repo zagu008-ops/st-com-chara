@@ -15,7 +15,7 @@ import { interrogateImage } from './utils/interrogator.js';
 import { insertResultsToChat } from './utils/imageInserter.js';
 import { initFab } from './utils/fab.js';
 import { registerAutoTrigger, toggleAutoTrigger } from './utils/autoTrigger.js';
-import { autoFormatWorkflowWithAI } from './utils/workflowAiHelper.js';
+import { initAiHelperEvents } from './utils/workflowAiHelper.js';
 
 // ============ 初始化 ============
 
@@ -1115,32 +1115,8 @@ function bindWorkflowPresetEvents() {
         a.click();
     });
 
-    // --- AI 助手自动格式化工作流 ---
-    $('#comfyui-gen-workflow-ai-helper').on('click', async function () {
-        const btn = $(this);
-        const textarea = $('#comfyui-gen-workflow');
-        const rawJson = textarea.val();
-
-        if (!rawJson || !rawJson.trim()) {
-            toastr.warning('请先粘贴 ComfyUI 工作流 API JSON', 'ComfyUI AI 助手');
-            return;
-        }
-
-        btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 正在 AI 分析...').prop('disabled', true);
-        try {
-            const formattedJson = await autoFormatWorkflowWithAI(rawJson);
-            if (formattedJson) {
-                textarea.val(formattedJson);
-                // 触发 change 事件保存设置
-                textarea.trigger('input');
-                toastr.success('AI 已成功分析并替换占位符！这只是推测，请检查 JSON 内容。', 'ComfyUI AI 助手');
-            }
-        } catch (e) {
-            toastr.error('AI 助手执行失败: ' + e.message, 'ComfyUI AI 助手');
-        } finally {
-            btn.html('<i class="fa-solid fa-wand-magic-sparkles"></i> ✨ AI 助手配置').prop('disabled', false);
-        }
-    });
+    // --- AI 助手对话框事件初始化 ---
+    initAiHelperEvents();
 
     // --- 测试当前工作流 ---
     $('#comfyui-gen-test-workflow').on('click', async function () {
