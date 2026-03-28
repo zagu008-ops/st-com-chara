@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "comfyui-gen",
-    "version": "1.0.0",
-    "homePage": "",
-    "updata": "v1.0.0\n初始版本：ComfyUI 专用生图插件\n支持服装预设和角色预设管理\n支持图片反推提示词\n悬浮球快捷操作"
+    "version": "1.2.0",
+    "homePage": "https://github.com/zagu008-ops/st-com-chara",
+    "updata": "v1.2.0\n\u2022 新增 LORA 选择器（自动从 ComfyUI 加载列表）\n\u2022 新增工作流预设管理（保存/新建/导入/导出/删除）\n\u2022 新增工作流一键搬运（从旧插件自动扫描）\n\u2022 新增 LLM 大模型反推提示词模式（支持 GPT-4o/Gemini 等）\n\u2022 修复更新按钮 JSON 解析崩溃\n\u2022 修复模型下拉框加载超时\n\nv1.0.0\n初始版本"
 }
