@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "comfyui-gen",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "homePage": "https://github.com/zagu008-ops/st-com-chara",
-    "updata": "v1.2.0\n\u2022 新增 LORA 选择器（自动从 ComfyUI 加载列表）\n\u2022 新增工作流预设管理（保存/新建/导入/导出/删除）\n\u2022 新增工作流一键搬运（从旧插件自动扫描）\n\u2022 新增 LLM 大模型反推提示词模式（支持 GPT-4o/Gemini 等）\n\u2022 修复更新按钮 JSON 解析崩溃\n\u2022 修复模型下拉框加载超时\n\nv1.0.0\n初始版本"
+    "updata": "v1.3.0\n\u2022 反推设置独立为单独 Tab 模块\n\u2022 LLM/ComfyUI 反推配置分区显示\n\nv1.2.0\n\u2022 新增 LORA 选择器\n\u2022 新增工作流预设管理\n\u2022 新增一键搬运\n\u2022 新增 LLM 大模型反推\n\u2022 修复更新按钮崩溃\n\nv1.0.0\n初始版本"
 }

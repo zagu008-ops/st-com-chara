@@ -4,7 +4,7 @@
         <div class="comfyui-gen-modal-content">
             <!-- 头部 -->
             <div class="comfyui-gen-modal-header">
-                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.2.0</span>
+                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.3.0</span>
                 </h2>
                 <div class="comfyui-gen-header-actions">
                     <button id="comfyui-gen-update-btn" class="comfyui-gen-btn secondary" title="从 GitHub 拉取最新代码">
@@ -18,6 +18,8 @@
             <div class="comfyui-gen-tabs">
                 <button class="comfyui-gen-tab active" data-tab="comfyui"><i class="fa-solid fa-server"></i>
                     ComfyUI</button>
+                <button class="comfyui-gen-tab" data-tab="interrogate"><i class="fa-solid fa-magnifying-glass"></i>
+                    反推</button>
                 <button class="comfyui-gen-tab" data-tab="outfits"><i class="fa-solid fa-shirt"></i> 服装管理</button>
                 <button class="comfyui-gen-tab" data-tab="characters"><i class="fa-solid fa-user"></i> 角色管理</button>
             </div>
@@ -41,13 +43,6 @@
                                 </button>
                             </div>
                             <span id="comfyui-gen-connection-status" class="comfyui-gen-status"></span>
-                        </div>
-                        <div class="comfyui-gen-field">
-                            <label for="comfyui-gen-interrogate-url">反推提示词接口 (Image-to-Prompt API) <span
-                                    class="comfyui-gen-optional">(可选)</span></label>
-                            <input type="text" id="comfyui-gen-interrogate-url"
-                                placeholder="http://127.0.0.1:5000 或者留空默认使用 ComfyUI" />
-                            <small>如果不填，反推将默认使用上方的 ComfyUI 和设置中的 WD14 Tagger 工作流进行处理。</small>
                         </div>
                         <div class="comfyui-gen-field">
                             <label for="comfyui-gen-client-mode">客户端模式</label>
@@ -248,50 +243,6 @@
                             <textarea id="comfyui-gen-workflow" rows="6" class="comfyui-gen-code"
                                 placeholder='粘贴 ComfyUI API JSON 工作流...'></textarea>
                         </div>
-                        <div class="comfyui-gen-field">
-                            <label for="comfyui-gen-interrogate-mode">反推提示词模式</label>
-                            <select id="comfyui-gen-interrogate-mode">
-                                <option value="comfyui">ComfyUI (WD14 Tagger)</option>
-                                <option value="llm">LLM 大模型 (Vision API)</option>
-                            </select>
-                            <small>ComfyUI 模式使用 WD14 Tagger 生成 danbooru 标签；LLM 模式使用视觉大模型分析图片生成描述</small>
-                        </div>
-
-                        <!-- LLM Vision 配置 -->
-                        <div id="comfyui-gen-llm-interrogate-section" style="display: none;">
-                            <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-llm-interrogate-url">LLM API 地址 <small>OpenAI 兼容格式，如
-                                        https://api.openai.com/v1</small></label>
-                                <input type="text" id="comfyui-gen-llm-interrogate-url"
-                                    placeholder="https://api.openai.com/v1 或本地 http://127.0.0.1:11434/v1" />
-                            </div>
-                            <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-llm-interrogate-key">API Key</label>
-                                <input type="password" id="comfyui-gen-llm-interrogate-key" placeholder="sk-..." />
-                            </div>
-                            <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-llm-interrogate-model">模型名称</label>
-                                <input type="text" id="comfyui-gen-llm-interrogate-model"
-                                    placeholder="gpt-4o / gemini-2.5-flash / llava 等" />
-                            </div>
-                            <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-llm-interrogate-prompt">系统提示词 <small>指导模型如何分析图片</small></label>
-                                <textarea id="comfyui-gen-llm-interrogate-prompt" rows="3"
-                                    placeholder="Please analyze this image and generate Stable Diffusion style tags..."></textarea>
-                            </div>
-                        </div>
-
-                        <!-- ComfyUI 反推工作流 -->
-                        <div id="comfyui-gen-comfyui-interrogate-section">
-                            <div class="comfyui-gen-field">
-                                <label for="comfyui-gen-interrogate-workflow">
-                                    反推工作流 JSON <span class="comfyui-gen-optional">(可选)</span>
-                                    <small>留空使用默认 WD14 Tagger 工作流。使用 %interrogate_image% 占位符</small>
-                                </label>
-                                <textarea id="comfyui-gen-interrogate-workflow" rows="4" class="comfyui-gen-code"
-                                    placeholder="留空使用默认 WD14 Tagger 工作流"></textarea>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- 其他设置 -->
@@ -304,6 +255,64 @@
                         <div class="comfyui-gen-field checkbox">
                             <input type="checkbox" id="comfyui-gen-fab-enabled" checked />
                             <label for="comfyui-gen-fab-enabled">显示悬浮球</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 反推提示词 ========== -->
+                <div class="comfyui-gen-panel" data-panel="interrogate">
+                    <div class="comfyui-gen-section">
+                        <h3>反推模式</h3>
+                        <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-interrogate-mode">反推提示词引擎</label>
+                            <select id="comfyui-gen-interrogate-mode">
+                                <option value="comfyui">ComfyUI (WD14 Tagger)</option>
+                                <option value="llm">LLM 大模型 (Vision API)</option>
+                            </select>
+                            <small>ComfyUI 模式使用 WD14 Tagger 生成 danbooru 标签；LLM 模式使用视觉大模型分析图片</small>
+                        </div>
+                    </div>
+
+                    <!-- LLM Vision 配置 -->
+                    <div id="comfyui-gen-llm-interrogate-section" class="comfyui-gen-section" style="display: none;">
+                        <h3>LLM 视觉模型配置</h3>
+                        <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-llm-interrogate-url">API 地址 <small>OpenAI 兼容格式</small></label>
+                            <input type="text" id="comfyui-gen-llm-interrogate-url"
+                                placeholder="https://api.openai.com/v1 或 http://127.0.0.1:11434/v1" />
+                        </div>
+                        <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-llm-interrogate-key">API Key</label>
+                            <input type="password" id="comfyui-gen-llm-interrogate-key" placeholder="sk-..." />
+                        </div>
+                        <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-llm-interrogate-model">模型名称</label>
+                            <input type="text" id="comfyui-gen-llm-interrogate-model"
+                                placeholder="gpt-4o / gemini-2.5-flash / llava 等" />
+                        </div>
+                        <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-llm-interrogate-prompt">系统提示词 <small>指导模型生成什么风格的标签</small></label>
+                            <textarea id="comfyui-gen-llm-interrogate-prompt" rows="4"
+                                placeholder="Please analyze this image and generate Stable Diffusion style tags..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- ComfyUI 反推配置 -->
+                    <div id="comfyui-gen-comfyui-interrogate-section" class="comfyui-gen-section">
+                        <h3>ComfyUI 反推配置</h3>
+                        <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-interrogate-url">反推接口地址 <span
+                                    class="comfyui-gen-optional">(可选)</span></label>
+                            <input type="text" id="comfyui-gen-interrogate-url" placeholder="留空默认使用上方 ComfyUI 地址" />
+                            <small>如果不填，反推将使用 ComfyUI 主地址和 WD14 Tagger 工作流</small>
+                        </div>
+                        <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-interrogate-workflow">
+                                反推工作流 JSON <span class="comfyui-gen-optional">(可选)</span>
+                                <small>留空使用默认 WD14 Tagger。使用 %interrogate_image% 占位符</small>
+                            </label>
+                            <textarea id="comfyui-gen-interrogate-workflow" rows="4" class="comfyui-gen-code"
+                                placeholder="留空使用默认 WD14 Tagger 工作流"></textarea>
                         </div>
                     </div>
                 </div>
