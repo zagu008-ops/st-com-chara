@@ -4,7 +4,8 @@
  * 解析 LLM 指令，并自动格式化 JSON 占位符。
  */
 
-import { extension_settings, saveSettingsExtension } from '../../../../extensions.js';
+import { extension_settings } from '../../../../extensions.js';
+import { saveSettingsDebounced } from '../../../../../script.js';
 import { extensionName } from './config.js';
 import { callLLM } from './promptGen.js';
 
@@ -201,7 +202,7 @@ async function executeAiCommands(jsonText, workflowStr) {
                     }
                 }
                 if (settingsChanged) {
-                    await saveSettingsExtension();
+                    saveSettingsDebounced();
                 }
             }
 
