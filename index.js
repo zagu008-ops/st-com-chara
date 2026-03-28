@@ -160,6 +160,12 @@ function bindSettingsEvents() {
     // 提示词预设 UI 绑定
     bindPromptPresetEvents();
 
+    // LORA 管理
+    bindLoraEvents();
+
+    // 工作流预设管理
+    bindWorkflowPresetEvents();
+
     // === 服装 & 角色预设 ===
     bindPresetEvents('outfit');
     bindPresetEvents('character');
@@ -582,6 +588,7 @@ async function testConnectionAndRefresh() {
                 const info = await infoResp.json();
                 console.log('[ComfyUI Gen] object_info 获取成功，总计', Object.keys(info).length, '个节点');
                 populateDropdownsFromObjectInfo(info);
+                populateLoraDropdown(info);
             } else {
                 console.error('[ComfyUI Gen] object_info 请求失败:', infoResp.status, infoResp.statusText);
                 toastr.warning('获取 ComfyUI 模型列表失败 (HTTP ' + infoResp.status + ')。模型下拉框可能为空。');
@@ -655,6 +662,28 @@ function populateDropdownsFromObjectInfo(info) {
     }
 
     console.log('[ComfyUI Gen] 下拉数据已刷新');
+}
+
+/**
+ * 从 object_info 中提取 LORA 列表并填充下拉框
+ */
+function populateLoraDropdown(info) {
+    const loraNode = info['LoraLoader'] || info['LoraLoaderModelOnly'];
+    if (loraNode) {
+        const loraList = loraNode?.input?.required?.lora_name?.[0];
+        if (Array.isArray(loraList)) {
+            console.log('[ComfyUI Gen] LORA 列表:', loraList.length, '个');
+            const select = $('#comfyui-gen-lora-select');
+            select.empty();
+            select.append('<option value="">-- 选择 LORA --</option>');
+            loraList.forEach(name => {
+                const shortName = name.split('/').pop().split('\\').pop();
+                select.append(`<option value="${name}">${shortName}</option>`);
+            });
+        }
+    } else {
+        console.warn('[ComfyUI Gen] 未找到 LoraLoader 节点');
+    }
 }
 
 /**
@@ -737,6 +766,278 @@ async function updateExtension() {
     }
 }
 
-// ============ 启动 ============
+// ============ LORA 管理 ============
+
+function bindLoraEvents() {
+    // 添加 LORA
+    $('#comfyui-gen-add-lora').on('click', function () {
+        const name = $('#comfyui-gen-lora-select').val();
+        const weight = parseFloat($('#comfyui-gen-lora-weight').val()) || 1.0;
+        if (!name) {
+            toastr.info('请先选择一个 LORA');
+            return;
+        }
+
+        const s = extension_settings[extensionName];
+        if (!s.loras) s.loras = [];
+
+        // 防止重复添加
+        if (s.loras.some(l => l.name === name)) {
+            toastr.info('该 LORA 已在列表中');
+            return;
+        }
+
+        s.loras.push({ name, weight });
+        saveSettingsDebounced();
+        renderLoraList();
+        toastr.success('已添加 LORA: ' + name.split('/').pop().split('\\').pop());
+    });
+
+    // 删除 LORA（事件委托）
+    $('#comfyui-gen-lora-list').on('click', '.lora-remove', function () {
+        const idx = parseInt($(this).data('idx'));
+        const s = extension_settings[extensionName];
+        if (s.loras && s.loras[idx]) {
+            s.loras.splice(idx, 1);
+            saveSettingsDebounced();
+            renderLoraList();
+        }
+    });
+
+    // 初始渲染
+    renderLoraList();
+}
+
+function renderLoraList() {
+    const s = extension_settings[extensionName];
+    const container = $('#comfyui-gen-lora-list');
+    container.empty();
+
+    if (!s.loras || s.loras.length === 0) return;
+
+    s.loras.forEach((lora, idx) => {
+        const shortName = lora.name.split('/').pop().split('\\').pop();
+        container.append(`
+            <span class="comfyui-gen-lora-tag">
+                ${shortName}
+                <span class="lora-weight">${lora.weight}</span>
+                <i class="fa-solid fa-xmark lora-remove" data-idx="${idx}" title="移除"></i>
+            </span>
+        `);
+    });
+}
+
+// ============ 工作流预设管理 ============
+
+function bindWorkflowPresetEvents() {
+    const s = extension_settings[extensionName];
+
+    // 下拉切换
+    $('#comfyui-gen-workflow-preset').on('change', function () {
+        const id = $(this).val();
+        s.current_workflow_preset_id = id;
+        loadWorkflowPreset(id);
+        saveSettingsDebounced();
+    });
+
+    // 保存
+    $('#comfyui-gen-save-workflow-preset').on('click', function () {
+        const id = s.current_workflow_preset_id;
+        if (!id) {
+            // 保存到默认
+            s.workflow_json = $('#comfyui-gen-workflow').val();
+            saveSettingsDebounced();
+            toastr.success('默认工作流已保存');
+            return;
+        }
+        const preset = s.workflow_presets.find(p => p.id === id);
+        if (preset) {
+            preset.workflow_json = $('#comfyui-gen-workflow').val();
+            saveSettingsDebounced();
+            toastr.success('工作流预设已保存: ' + preset.name);
+        }
+    });
+
+    // 新建
+    $('#comfyui-gen-new-workflow-preset').on('click', function () {
+        const name = prompt('请输入工作流预设名称:');
+        if (!name) return;
+        if (!s.workflow_presets) s.workflow_presets = [];
+
+        const newPreset = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            name: name,
+            workflow_json: $('#comfyui-gen-workflow').val() || '',
+        };
+        s.workflow_presets.push(newPreset);
+        s.current_workflow_preset_id = newPreset.id;
+        saveSettingsDebounced();
+        updateWorkflowPresetDropdown();
+        toastr.success('新建工作流预设: ' + name);
+    });
+
+    // 删除
+    $('#comfyui-gen-delete-workflow-preset').on('click', function () {
+        const id = s.current_workflow_preset_id;
+        if (!id) {
+            toastr.info('默认工作流无法删除');
+            return;
+        }
+        const preset = s.workflow_presets.find(p => p.id === id);
+        if (!preset) return;
+        if (!confirm('确定删除工作流预设 "' + preset.name + '" 吗？')) return;
+
+        s.workflow_presets = s.workflow_presets.filter(p => p.id !== id);
+        s.current_workflow_preset_id = '';
+        saveSettingsDebounced();
+        updateWorkflowPresetDropdown();
+        loadWorkflowPreset('');
+        toastr.success('已删除工作流预设');
+    });
+
+    // 上传 JSON 文件
+    $('#comfyui-gen-import-workflow-file').on('click', function () {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const content = ev.target.result;
+                try {
+                    JSON.parse(content); // 验证 JSON
+                    $('#comfyui-gen-workflow').val(content).trigger('input');
+                    toastr.success('已导入工作流: ' + file.name);
+                } catch {
+                    toastr.error('JSON 文件格式错误');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    });
+
+    // 下载 JSON 文件
+    $('#comfyui-gen-export-workflow-file').on('click', function () {
+        const json = $('#comfyui-gen-workflow').val();
+        if (!json) {
+            toastr.info('当前工作流为空');
+            return;
+        }
+        const name = s.workflow_presets.find(p => p.id === s.current_workflow_preset_id)?.name || 'workflow';
+        const blob = new Blob([json], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name + '.json';
+        a.click();
+    });
+
+    // 一键搬运（从 st-chatu8 comfyui_profiles）
+    $('#comfyui-gen-migrate-workflow-presets').on('click', function () {
+        console.log('[ComfyUI Gen] 一键搬运工作流按钮被点击');
+
+        const oldExt = extension_settings['st-chatu8'];
+        if (!oldExt) {
+            toastr.warning('未找到 st-chatu8 插件数据。\n当前已注册扩展: ' + Object.keys(extension_settings).join(', '), '工作流搬运');
+            return;
+        }
+
+        // 旧插件工作流存储在 comfyui_profiles 中
+        const profiles = oldExt.comfyui_profiles;
+        if (!profiles || typeof profiles !== 'object') {
+            console.log('[ComfyUI Gen] st-chatu8 数据中无 comfyui_profiles:', Object.keys(oldExt).slice(0, 20));
+
+            // 也尝试直接读 workerflows 字段
+            const workflows = oldExt.workerflows || oldExt.workflows;
+            if (!workflows) {
+                toastr.warning('找到了 st-chatu8 数据，但无工作流预设。\n可用字段: ' + Object.keys(oldExt).slice(0, 20).join(', '), '工作流搬运');
+                return;
+            }
+        }
+
+        if (!s.workflow_presets) s.workflow_presets = [];
+        let migratedCount = 0;
+
+        // 从 comfyui_profiles 迁移
+        if (profiles && typeof profiles === 'object') {
+            Object.keys(profiles).forEach(key => {
+                if (s.workflow_presets.some(p => p.name === key)) return;
+                const value = profiles[key];
+                let jsonStr = '';
+
+                if (typeof value === 'string') {
+                    jsonStr = value;
+                } else if (typeof value === 'object') {
+                    // 可能是 { workerflow: "..." } 或其他嵌套结构
+                    jsonStr = value.workerflow || value.workflow || value.editWorker || JSON.stringify(value);
+                }
+
+                s.workflow_presets.push({
+                    id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                    name: key,
+                    workflow_json: jsonStr,
+                });
+                migratedCount++;
+            });
+        }
+
+        // 也尝试从 workerflows / workflows 备选字段迁移
+        const altWorkflows = oldExt.workerflows || oldExt.workflows;
+        if (altWorkflows && typeof altWorkflows === 'object') {
+            Object.keys(altWorkflows).forEach(key => {
+                if (s.workflow_presets.some(p => p.name === key)) return;
+                const value = altWorkflows[key];
+                let jsonStr = typeof value === 'string' ? value : JSON.stringify(value);
+                s.workflow_presets.push({
+                    id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                    name: key,
+                    workflow_json: jsonStr,
+                });
+                migratedCount++;
+            });
+        }
+
+        if (migratedCount > 0) {
+            saveSettingsDebounced();
+            updateWorkflowPresetDropdown();
+            toastr.success('成功搬运了 ' + migratedCount + ' 个工作流预设！', '工作流搬运');
+        } else {
+            toastr.info('没有新的可搬运工作流（可能已存在同名预设）', '工作流搬运');
+        }
+    });
+
+    // 初始化下拉框
+    updateWorkflowPresetDropdown();
+}
+
+function updateWorkflowPresetDropdown() {
+    const s = extension_settings[extensionName];
+    const select = $('#comfyui-gen-workflow-preset');
+    select.empty();
+    select.append('<option value="">默认</option>');
+
+    if (s.workflow_presets) {
+        s.workflow_presets.forEach(p => {
+            const selected = p.id === s.current_workflow_preset_id ? 'selected' : '';
+            select.append(`<option value="${p.id}" ${selected}>${p.name}</option>`);
+        });
+    }
+}
+
+function loadWorkflowPreset(id) {
+    const s = extension_settings[extensionName];
+    if (!id) {
+        $('#comfyui-gen-workflow').val(s.workflow_json || '');
+        return;
+    }
+    const preset = s.workflow_presets?.find(p => p.id === id);
+    if (preset) {
+        $('#comfyui-gen-workflow').val(preset.workflow_json || '');
+    }
+}
+
+// ============ 提示词预设迁移启动 ============
 
 init();

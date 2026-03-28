@@ -96,6 +96,27 @@
                         </div>
                     </div>
 
+                    <!-- LORA -->
+                    <div class="comfyui-gen-section">
+                        <h3>LORA</h3>
+                        <div class="comfyui-gen-field">
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <label style="white-space: nowrap;">添加 LORA</label>
+                                <select id="comfyui-gen-lora-select" style="flex: 1;">
+                                    <option value="">请先连接 ComfyUI</option>
+                                </select>
+                                <input type="number" id="comfyui-gen-lora-weight" value="1.0" min="0" max="2"
+                                    step="0.05" style="width: 70px;" title="权重" />
+                                <button id="comfyui-gen-add-lora" class="comfyui-gen-btn icon secondary" title="添加到列表">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="comfyui-gen-lora-list" class="comfyui-gen-lora-tags">
+                            <!-- 已添加的 LORA 标签在此动态渲染 -->
+                        </div>
+                    </div>
+
                     <!-- 生成参数 -->
                     <div class="comfyui-gen-section">
                         <h3>生成参数</h3>
@@ -198,8 +219,30 @@
                     <div class="comfyui-gen-section">
                         <h3>工作流配置</h3>
                         <div class="comfyui-gen-field">
+                            <label for="comfyui-gen-workflow-preset">工作流预设</label>
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <select id="comfyui-gen-workflow-preset" style="flex: 1; min-width: 150px;">
+                                    <option value="">默认</option>
+                                </select>
+                                <button id="comfyui-gen-save-workflow-preset" class="comfyui-gen-btn icon"
+                                    title="保存当前工作流"><i class="fa-solid fa-save"></i></button>
+                                <button id="comfyui-gen-new-workflow-preset" class="comfyui-gen-btn icon"
+                                    title="新建预设"><i class="fa-solid fa-file-export"></i></button>
+                                <button id="comfyui-gen-import-workflow-file" class="comfyui-gen-btn icon secondary"
+                                    title="上传 JSON 文件"><i class="fa-solid fa-upload"></i></button>
+                                <button id="comfyui-gen-export-workflow-file" class="comfyui-gen-btn icon secondary"
+                                    title="下载 JSON 文件"><i class="fa-solid fa-download"></i></button>
+                                <button id="comfyui-gen-delete-workflow-preset" class="comfyui-gen-btn icon danger"
+                                    title="删除当前预设"><i class="fa-solid fa-trash"></i></button>
+                                <button id="comfyui-gen-migrate-workflow-presets" class="comfyui-gen-btn icon secondary"
+                                    title="从原智绘姬插件一键搬运工作流">
+                                    <i class="fa-solid fa-file-import"></i> 一键搬运
+                                </button>
+                            </div>
+                        </div>
+                        <div class="comfyui-gen-field">
                             <label for="comfyui-gen-workflow">
-                                生图工作流 JSON
+                                工作流 (JSON)
                                 <small>从 ComfyUI 导出 API 格式，使用 %prompt% %negative_prompt% "%steps%" 等占位符</small>
                             </label>
                             <textarea id="comfyui-gen-workflow" rows="6" class="comfyui-gen-code"

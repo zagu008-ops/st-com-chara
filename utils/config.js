@@ -51,8 +51,15 @@ export const defaultSettings = {
     prompt_presets: [],
     current_prompt_preset_id: '',
 
+    // LORA 列表 [{ name: 'lora_filename', weight: 1.0 }]
+    loras: [],
+
     // 工作流 JSON（用户粘贴 ComfyUI 导出的 API JSON）
     workflow_json: '',
+
+    // 工作流预设集合 [{ id, name, workflow_json }]
+    workflow_presets: [],
+    current_workflow_preset_id: '',
 
     // 反推工作流 JSON（用于图片反推提示词）
     interrogate_workflow_json: '',
