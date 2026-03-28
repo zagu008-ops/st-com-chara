@@ -157,9 +157,144 @@ function bindSettingsEvents() {
     // 更新插件
     $('#comfyui-gen-update-btn').on('click', updateExtension);
 
+    // 提示词预设 UI 绑定
+    bindPromptPresetEvents();
+
     // === 服装 & 角色预设 ===
     bindPresetEvents('outfit');
     bindPresetEvents('character');
+}
+
+/**
+ * 绑定提示词预设相关事件
+ */
+function bindPromptPresetEvents() {
+    $('#comfyui-gen-prompt-preset').on('change', function () {
+        loadPromptPreset($(this).val());
+    });
+
+    $('#comfyui-gen-new-prompt-preset').on('click', function () {
+        const name = prompt('请输入新提示词预设的名称：');
+        if (!name) return;
+
+        const s = extension_settings[extensionName];
+        if (!s.prompt_presets) s.prompt_presets = [];
+
+        const newPreset = {
+            id: Date.now().toString(),
+            name: name,
+            fixed_positive_prompt: $('#comfyui-gen-fixed-positive').val() || '',
+            fixed_positive_prompt_end: $('#comfyui-gen-fixed-positive-end').val() || '',
+            fixed_negative_prompt: $('#comfyui-gen-fixed-negative').val() || '',
+            positive_quality_preset: $('#comfyui-gen-positive-quality').val() || '',
+            negative_quality_preset: $('#comfyui-gen-negative-quality').val() || ''
+        };
+
+        s.prompt_presets.push(newPreset);
+        s.current_prompt_preset_id = newPreset.id;
+        saveSettingsDebounced();
+        updatePromptPresetDropdown();
+        toastr.success('已新建预设：' + name, 'ComfyUI 生图');
+    });
+
+    $('#comfyui-gen-save-prompt-preset').on('click', function () {
+        const s = extension_settings[extensionName];
+        const id = s.current_prompt_preset_id;
+        if (!id) {
+            toastr.warning('当前是默认配置，不能保存。请先「新建预设」。', 'ComfyUI 生图');
+            return;
+        }
+
+        const preset = s.prompt_presets.find(p => p.id === id);
+        if (preset) {
+            preset.fixed_positive_prompt = $('#comfyui-gen-fixed-positive').val() || '';
+            preset.fixed_positive_prompt_end = $('#comfyui-gen-fixed-positive-end').val() || '';
+            preset.fixed_negative_prompt = $('#comfyui-gen-fixed-negative').val() || '';
+            preset.positive_quality_preset = $('#comfyui-gen-positive-quality').val() || '';
+            preset.negative_quality_preset = $('#comfyui-gen-negative-quality').val() || '';
+            saveSettingsDebounced();
+            toastr.success('已保存当前预设', 'ComfyUI 生图');
+        }
+    });
+
+    $('#comfyui-gen-delete-prompt-preset').on('click', function () {
+        const s = extension_settings[extensionName];
+        const id = s.current_prompt_preset_id;
+        if (!id) {
+            toastr.warning('没有选中预设，无法删除', 'ComfyUI 生图');
+            return;
+        }
+
+        if (confirm('确定要删除当前预设吗？')) {
+            s.prompt_presets = s.prompt_presets.filter(p => p.id !== id);
+            s.current_prompt_preset_id = '';
+            saveSettingsDebounced();
+            updatePromptPresetDropdown();
+            loadPromptPreset('');
+            toastr.success('预设已删除', 'ComfyUI 生图');
+        }
+    });
+
+    $('#comfyui-gen-migrate-prompt-presets').on('click', function () {
+        console.log('[ComfyUI Gen] 一键迁移按钮被点击');
+        console.log('[ComfyUI Gen] extension_settings 所有 key:', Object.keys(extension_settings));
+
+        const oldExt = extension_settings['st-chatu8'];
+        console.log('[ComfyUI Gen] st-chatu8 数据:', oldExt ? '存在' : '不存在');
+
+        if (!oldExt) {
+            toastr.warning('未在系统中找到原 st-chatu8 插件数据。请确认 st-chatu8 插件已安装并至少打开过一次。\n\n当前已注册的扩展列表:\n' + Object.keys(extension_settings).join(', '), 'ComfyUI 数据迁移');
+            return;
+        }
+
+        if (!oldExt.yushe) {
+            console.log('[ComfyUI Gen] st-chatu8 数据中无 yushe 字段:', Object.keys(oldExt));
+            toastr.warning('找到了 st-chatu8 插件数据，但其中不包含预设(yushe)字段。\n\n可用字段: ' + Object.keys(oldExt).slice(0, 15).join(', '), 'ComfyUI 数据迁移');
+            return;
+        }
+
+        const oldYushe = oldExt.yushe;
+        if (typeof oldYushe !== 'object') {
+            toastr.error('原预设数据格式异常（类型: ' + typeof oldYushe + '）。', 'ComfyUI 数据迁移');
+            return;
+        }
+
+        const s = extension_settings[extensionName];
+        if (!s.prompt_presets) s.prompt_presets = [];
+
+        let migratedCount = 0;
+
+        const keys = Object.keys(oldYushe);
+        console.log('[ComfyUI Gen] 旧预设 key 列表:', keys);
+
+        keys.forEach(key => {
+            const oldItem = oldYushe[key];
+            if (!oldItem) return;
+            if (s.prompt_presets.some(p => p.name === key)) return;
+
+            console.log('[ComfyUI Gen] 迁移预设:', key, '数据 keys:', Object.keys(oldItem));
+
+            // Support both _comfyui suffixed and plain key names from legacy plugin
+            s.prompt_presets.push({
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                name: key,
+                fixed_positive_prompt: oldItem.fixedPrompt_comfyui || oldItem.fixedPrompt || oldItem['fixedPrompt'] || '',
+                fixed_positive_prompt_end: oldItem.fixedPrompt_end_comfyui || oldItem.fixedPrompt_end || oldItem['fixedPrompt_end'] || '',
+                fixed_negative_prompt: oldItem.negativePrompt_comfyui || oldItem.negativePrompt || oldItem['negativePrompt'] || '',
+                positive_quality_preset: (oldItem.AQT_comfyui === false || oldItem.AQT === false) ? '' : (oldItem.AQT_comfyui || oldItem.AQT || s.positive_quality_preset || ''),
+                negative_quality_preset: oldItem.UCP_comfyui || oldItem.UCP || ''
+            });
+            migratedCount++;
+        });
+
+        if (migratedCount > 0) {
+            saveSettingsDebounced();
+            updatePromptPresetDropdown();
+            toastr.success(`成功迁移了 ${migratedCount} 个提示词预设！`, 'ComfyUI 数据迁移');
+        } else {
+            toastr.info('没有找到新的可迁移预设（可能是名称重复已存在）。', 'ComfyUI 数据迁移');
+        }
+    });
 }
 
 /**
@@ -384,118 +519,7 @@ function loadPromptPreset(id) {
     saveSettingsDebounced();
 }
 
-$('#comfyui-gen-prompt-preset').on('change', function () {
-    loadPromptPreset($(this).val());
-});
 
-$('#comfyui-gen-new-prompt-preset').on('click', function () {
-    const name = prompt('请输入新提示词预设的名称：');
-    if (!name) return;
-
-    const s = extension_settings[extensionName];
-    if (!s.prompt_presets) s.prompt_presets = [];
-
-    const newPreset = {
-        id: Date.now().toString(),
-        name: name,
-        fixed_positive_prompt: $('#comfyui-gen-fixed-positive').val() || '',
-        fixed_positive_prompt_end: $('#comfyui-gen-fixed-positive-end').val() || '',
-        fixed_negative_prompt: $('#comfyui-gen-fixed-negative').val() || '',
-        positive_quality_preset: $('#comfyui-gen-positive-quality').val() || '',
-        negative_quality_preset: $('#comfyui-gen-negative-quality').val() || ''
-    };
-
-    s.prompt_presets.push(newPreset);
-    s.current_prompt_preset_id = newPreset.id;
-    saveSettingsDebounced();
-    updatePromptPresetDropdown();
-    toastr.success('已新建预设：' + name, 'ComfyUI 生图');
-});
-
-$('#comfyui-gen-save-prompt-preset').on('click', function () {
-    const s = extension_settings[extensionName];
-    const id = s.current_prompt_preset_id;
-    if (!id) {
-        toastr.warning('当前是默认配置，不能保存。请先「新建预设」。', 'ComfyUI 生图');
-        return;
-    }
-
-    const preset = s.prompt_presets.find(p => p.id === id);
-    if (preset) {
-        preset.fixed_positive_prompt = $('#comfyui-gen-fixed-positive').val() || '';
-        preset.fixed_positive_prompt_end = $('#comfyui-gen-fixed-positive-end').val() || '';
-        preset.fixed_negative_prompt = $('#comfyui-gen-fixed-negative').val() || '';
-        preset.positive_quality_preset = $('#comfyui-gen-positive-quality').val() || '';
-        preset.negative_quality_preset = $('#comfyui-gen-negative-quality').val() || '';
-        saveSettingsDebounced();
-        toastr.success('已保存当前预设', 'ComfyUI 生图');
-    }
-});
-
-$('#comfyui-gen-delete-prompt-preset').on('click', function () {
-    const s = extension_settings[extensionName];
-    const id = s.current_prompt_preset_id;
-    if (!id) {
-        toastr.warning('没有选中预设，无法删除', 'ComfyUI 生图');
-        return;
-    }
-
-    if (confirm('确定要删除当前预设吗？')) {
-        s.prompt_presets = s.prompt_presets.filter(p => p.id !== id);
-        s.current_prompt_preset_id = '';
-        saveSettingsDebounced();
-        updatePromptPresetDropdown();
-        loadPromptPreset('');
-        toastr.success('预设已删除', 'ComfyUI 生图');
-    }
-});
-
-$('#comfyui-gen-migrate-prompt-presets').on('click', function () {
-    const oldExt = extension_settings['st-chatu8'];
-    if (!oldExt || !oldExt.yushe) {
-        toastr.info('未在系统中找到原 st-chatu8 插件的预设数据，请确认它是否存在。', 'ComfyUI 数据迁移');
-        return;
-    }
-
-    const oldYushe = oldExt.yushe;
-    if (typeof oldYushe !== 'object') {
-        toastr.error('原预设数据格式异常。', 'ComfyUI 数据迁移');
-        return;
-    }
-
-    const s = extension_settings[extensionName];
-    if (!s.prompt_presets) s.prompt_presets = [];
-
-    let migratedCount = 0;
-
-    // keys typically match preset names
-    const keys = Object.keys(oldYushe);
-    keys.forEach(key => {
-        const oldItem = oldYushe[key];
-        if (!oldItem) return;
-        // Skip duplicate names
-        if (s.prompt_presets.some(p => p.name === key)) return;
-
-        s.prompt_presets.push({
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-            name: key,
-            fixed_positive_prompt: oldItem.fixedPrompt_comfyui || '',
-            fixed_positive_prompt_end: oldItem.fixedPrompt_end_comfyui || '',
-            fixed_negative_prompt: oldItem.negativePrompt_comfyui || '',
-            positive_quality_preset: oldItem.AQT_comfyui === false ? '' : (oldItem.AQT_comfyui || s.positive_quality_preset),
-            negative_quality_preset: oldItem.UCP_comfyui || ''
-        });
-        migratedCount++;
-    });
-
-    if (migratedCount > 0) {
-        saveSettingsDebounced();
-        updatePromptPresetDropdown();
-        toastr.success(`成功迁移了 ${migratedCount} 个提示词预设！`, 'ComfyUI 数据迁移');
-    } else {
-        toastr.info('没有找到新的可迁移预设（可能是名称重复已存在）。', 'ComfyUI 数据迁移');
-    }
-});
 
 /**
  * 加载设置到 UI
@@ -552,10 +576,19 @@ async function testConnectionAndRefresh() {
         status.text('✓ 已连接，正在加载数据...').css('color', 'var(--cg-success)');
 
         // 获取 object_info（包含所有节点信息，从中提取模型、采样器等）
-        const infoResp = await fetch(`${url}/object_info`, { signal: AbortSignal.timeout(10000) });
-        if (infoResp.ok) {
-            const info = await infoResp.json();
-            populateDropdownsFromObjectInfo(info);
+        try {
+            const infoResp = await fetch(`${url}/object_info`, { signal: AbortSignal.timeout(30000) });
+            if (infoResp.ok) {
+                const info = await infoResp.json();
+                console.log('[ComfyUI Gen] object_info 获取成功，总计', Object.keys(info).length, '个节点');
+                populateDropdownsFromObjectInfo(info);
+            } else {
+                console.error('[ComfyUI Gen] object_info 请求失败:', infoResp.status, infoResp.statusText);
+                toastr.warning('获取 ComfyUI 模型列表失败 (HTTP ' + infoResp.status + ')。模型下拉框可能为空。');
+            }
+        } catch (infoErr) {
+            console.error('[ComfyUI Gen] object_info 获取异常:', infoErr);
+            toastr.warning('获取模型列表超时或失败: ' + infoErr.message + '。请检查 ComfyUI 是否带 --cors-header="*" 启动。');
         }
 
         status.text('✓ 连接成功，数据已刷新').css('color', 'var(--cg-success)');
@@ -573,21 +606,38 @@ async function testConnectionAndRefresh() {
 function populateDropdownsFromObjectInfo(info) {
     const s = extension_settings[extensionName];
 
+    console.log('[ComfyUI Gen] object_info 包含的节点列表 (前20个):', Object.keys(info).slice(0, 20));
+
     // 模型（checkpoint）
     const ckptNode = info['CheckpointLoaderSimple'] || info['CheckpointLoader'];
-    if (ckptNode?.input?.required?.ckpt_name?.[0]) {
-        populateSelect('#comfyui-gen-model', ckptNode.input.required.ckpt_name[0], s.default_params.model_name);
+    if (ckptNode) {
+        console.log('[ComfyUI Gen] CheckpointLoader 节点结构:', JSON.stringify(ckptNode?.input?.required?.ckpt_name)?.substring(0, 500));
+        const ckptList = ckptNode?.input?.required?.ckpt_name?.[0];
+        if (Array.isArray(ckptList)) {
+            console.log('[ComfyUI Gen] 模型列表:', ckptList.length, '个模型');
+            populateSelect('#comfyui-gen-model', ckptList, s.default_params.model_name);
+        } else {
+            console.warn('[ComfyUI Gen] ckpt_name[0] 不是数组:', typeof ckptList, ckptList);
+        }
+    } else {
+        console.warn('[ComfyUI Gen] 未找到 CheckpointLoaderSimple 或 CheckpointLoader 节点');
     }
 
     // 采样器
     const samplerNode = info['KSampler'] || info['KSamplerAdvanced'];
-    if (samplerNode?.input?.required?.sampler_name?.[0]) {
-        populateSelect('#comfyui-gen-sampler', samplerNode.input.required.sampler_name[0], s.default_params.sampler_name);
-    }
+    if (samplerNode) {
+        const samplerList = samplerNode?.input?.required?.sampler_name?.[0];
+        if (Array.isArray(samplerList)) {
+            populateSelect('#comfyui-gen-sampler', samplerList, s.default_params.sampler_name);
+        }
 
-    // 调度器
-    if (samplerNode?.input?.required?.scheduler?.[0]) {
-        populateSelect('#comfyui-gen-scheduler', samplerNode.input.required.scheduler[0], s.default_params.scheduler);
+        // 调度器
+        const schedulerList = samplerNode?.input?.required?.scheduler?.[0];
+        if (Array.isArray(schedulerList)) {
+            populateSelect('#comfyui-gen-scheduler', schedulerList, s.default_params.scheduler);
+        }
+    } else {
+        console.warn('[ComfyUI Gen] 未找到 KSampler 节点');
     }
 
     // VAE
@@ -635,17 +685,18 @@ async function updateExtension() {
     btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 更新中...').prop('disabled', true);
 
     try {
-        // Fetch CSRF token for the update request
-        const tokenResponse = await fetch('/api/csrf-token');
-        const tokenData = await tokenResponse.json();
-        const csrfToken = tokenData.token;
+        let headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // Attempt to get CSRF token from ST global variables (window.token is standard in ST 1.11+)
+        if (window.token) {
+            headers['X-CSRF-Token'] = window.token;
+        }
 
         const response = await fetch('/api/extensions/update', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken
-            },
+            headers: headers,
             body: JSON.stringify({
                 extension: 'st-com-chara',
                 global: false,
