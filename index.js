@@ -87,6 +87,10 @@ function bindSettingsEvents() {
         { id: '#comfyui-gen-interrogate-workflow', key: 'interrogate_workflow_json' },
         { id: '#comfyui-gen-positive-quality', key: 'positive_quality_preset' },
         { id: '#comfyui-gen-negative-quality', key: 'negative_quality_preset' },
+        { id: '#comfyui-gen-llm-interrogate-url', key: 'llm_interrogate_url' },
+        { id: '#comfyui-gen-llm-interrogate-key', key: 'llm_interrogate_key' },
+        { id: '#comfyui-gen-llm-interrogate-model', key: 'llm_interrogate_model' },
+        { id: '#comfyui-gen-llm-interrogate-prompt', key: 'llm_interrogate_prompt' },
     ];
 
     textInputs.forEach(({ id, key }) => {
@@ -149,6 +153,15 @@ function bindSettingsEvents() {
         saveSettingsDebounced();
         const fab = document.getElementById('comfyui-gen-fab');
         if (fab) fab.style.display = this.checked ? 'flex' : 'none';
+    });
+
+    // 反推模式切换
+    $('#comfyui-gen-interrogate-mode').on('change', function () {
+        const mode = $(this).val();
+        extension_settings[extensionName].interrogate_mode = mode;
+        saveSettingsDebounced();
+        $('#comfyui-gen-llm-interrogate-section').toggle(mode === 'llm');
+        $('#comfyui-gen-comfyui-interrogate-section').toggle(mode === 'comfyui');
     });
 
     // 测试连接 + 刷新下拉数据
@@ -558,6 +571,15 @@ function loadSettingsToUI() {
 
     // 加载下拉提示词预设列表
     updatePromptPresetDropdown();
+
+    // 反推模式
+    $('#comfyui-gen-interrogate-mode').val(s.interrogate_mode || 'comfyui');
+    $('#comfyui-gen-llm-interrogate-url').val(s.llm_interrogate_url || '');
+    $('#comfyui-gen-llm-interrogate-key').val(s.llm_interrogate_key || '');
+    $('#comfyui-gen-llm-interrogate-model').val(s.llm_interrogate_model || '');
+    $('#comfyui-gen-llm-interrogate-prompt').val(s.llm_interrogate_prompt || '');
+    $('#comfyui-gen-llm-interrogate-section').toggle(s.interrogate_mode === 'llm');
+    $('#comfyui-gen-comfyui-interrogate-section').toggle(s.interrogate_mode !== 'llm');
 }
 
 /**

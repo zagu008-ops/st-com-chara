@@ -65,6 +65,15 @@ export const defaultSettings = {
     interrogate_workflow_json: '',
     interrogate_url: '',
 
+    // 反推模式: 'comfyui' | 'llm'
+    interrogate_mode: 'comfyui',
+
+    // LLM Vision 反推配置
+    llm_interrogate_url: '',        // OpenAI 兼容 API 地址
+    llm_interrogate_key: '',        // API Key
+    llm_interrogate_model: '',      // 模型名
+    llm_interrogate_prompt: 'Please analyze this image and generate Stable Diffusion / NovelAI style tags (danbooru tags). Output ONLY comma-separated tags, no explanation. Include: character count, hair color/style, eye color, clothing, pose, expression, background, art style.',
+
     // 预设数据
     outfit_presets: [],
     character_presets: [],
