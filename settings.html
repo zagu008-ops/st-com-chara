@@ -4,7 +4,7 @@
         <div class="comfyui-gen-modal-content">
             <!-- 头部 -->
             <div class="comfyui-gen-modal-header">
-                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.3.4</span>
+                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.4.0</span>
                 </h2>
                 <div class="comfyui-gen-header-actions">
                     <button id="comfyui-gen-update-btn" class="comfyui-gen-btn secondary" title="从 GitHub 拉取最新代码">
@@ -20,6 +20,7 @@
                     ComfyUI</button>
                 <button class="comfyui-gen-tab" data-tab="interrogate"><i class="fa-solid fa-magnifying-glass"></i>
                     反推</button>
+                <button class="comfyui-gen-tab" data-tab="autogen"><i class="fa-solid fa-bolt"></i> 自动生图</button>
                 <button class="comfyui-gen-tab" data-tab="outfits"><i class="fa-solid fa-shirt"></i> 服装管理</button>
                 <button class="comfyui-gen-tab" data-tab="characters"><i class="fa-solid fa-user"></i> 角色管理</button>
             </div>
@@ -323,6 +324,77 @@
                             <button id="comfyui-gen-test-comfyui-interrogate-btn" class="comfyui-gen-btn secondary">
                                 <i class="fa-solid fa-plug"></i> 测试 ComfyUI 反推连接
                             </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 自动生图 ========== -->
+                <div class="comfyui-gen-panel" data-panel="autogen">
+                    <div class="comfyui-gen-section">
+                        <h3>自动生图</h3>
+                        <small
+                            style="color:var(--cg-text-muted); display:block; margin-bottom:12px;">角色回复消息后，自动提取场景描述并生成图片插入聊天。LLM
+                            配置复用「反推」Tab 中的设置。</small>
+                        <div class="comfyui-gen-field checkbox">
+                            <input type="checkbox" id="comfyui-gen-auto-enabled" />
+                            <label for="comfyui-gen-auto-enabled">启用自动生图</label>
+                        </div>
+                    </div>
+
+                    <div id="comfyui-gen-auto-options" style="display:none;">
+                        <div class="comfyui-gen-section">
+                            <h3>触发设置</h3>
+                            <div class="comfyui-gen-field">
+                                <label for="comfyui-gen-auto-trigger-mode">触发模式</label>
+                                <select id="comfyui-gen-auto-trigger-mode">
+                                    <option value="llm">LLM 自动生图（推荐）</option>
+                                    <option value="marker">标记触发</option>
+                                </select>
+                                <small>LLM 模式：自动读取聊天上下文，调用 LLM 生成 danbooru tags。标记模式：检测消息中 [tags] 标记并提取。</small>
+                            </div>
+                            <div class="comfyui-gen-field checkbox">
+                                <input type="checkbox" id="comfyui-gen-auto-only-character" checked />
+                                <label for="comfyui-gen-auto-only-character">只对角色消息触发（忽略你自己发的消息）</label>
+                            </div>
+                        </div>
+
+                        <!-- 标记模式选项 -->
+                        <div id="comfyui-gen-auto-marker-section" class="comfyui-gen-section" style="display:none;">
+                            <h3>标记设置</h3>
+                            <div class="comfyui-gen-field-grid">
+                                <div class="comfyui-gen-field">
+                                    <label for="comfyui-gen-auto-marker-start">开始标记</label>
+                                    <input type="text" id="comfyui-gen-auto-marker-start" value="[" />
+                                </div>
+                                <div class="comfyui-gen-field">
+                                    <label for="comfyui-gen-auto-marker-end">结束标记</label>
+                                    <input type="text" id="comfyui-gen-auto-marker-end" value="]" />
+                                </div>
+                            </div>
+                            <small style="color:var(--cg-text-muted);">示例：角色消息中包含 [1girl, smile, outdoors] 时自动提取标记内的
+                                tags 并生图</small>
+                        </div>
+
+                        <!-- LLM 模式选项 -->
+                        <div id="comfyui-gen-auto-llm-section" class="comfyui-gen-section">
+                            <h3>LLM 生图设置</h3>
+                            <div class="comfyui-gen-field">
+                                <label for="comfyui-gen-auto-context-length">上下文消息条数</label>
+                                <input type="number" id="comfyui-gen-auto-context-length" min="1" max="20" value="5" />
+                                <small>读取最近几条聊天记录作为 LLM 输入上下文</small>
+                            </div>
+                            <div class="comfyui-gen-field">
+                                <label for="comfyui-gen-auto-user-tags">用户附加标签 <small>可选，你希望每张图片都包含的额外描述</small></label>
+                                <textarea id="comfyui-gen-auto-user-tags" rows="2"
+                                    placeholder="如：cinematic lighting, detailed background, 4k"></textarea>
+                                <small style="color:var(--cg-text-muted);">这些标签会发送给 LLM 一起融合生成最终 tags，而不是简单拼接</small>
+                            </div>
+                            <div class="comfyui-gen-field">
+                                <label for="comfyui-gen-auto-system-prompt">自定义 System Prompt
+                                    <small>留空使用内置默认</small></label>
+                                <textarea id="comfyui-gen-auto-system-prompt" rows="4" class="comfyui-gen-code"
+                                    placeholder="留空使用内置默认提示词。你可以在这里自定义指导 LLM 输出图片标签的规则。"></textarea>
+                            </div>
                         </div>
                     </div>
                 </div>

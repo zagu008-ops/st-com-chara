@@ -14,6 +14,7 @@ import {
 import { interrogateImage } from './utils/interrogator.js';
 import { insertResultsToChat } from './utils/imageInserter.js';
 import { initFab } from './utils/fab.js';
+import { registerAutoTrigger, toggleAutoTrigger } from './utils/autoTrigger.js';
 
 // ============ 初始化 ============
 
@@ -50,6 +51,9 @@ async function init() {
 
     // 初始化悬浮球
     initFab();
+
+    // 注册自动生图事件
+    registerAutoTrigger();
 
     console.log('[ComfyUI Gen] 插件初始化完成');
 }
@@ -186,6 +190,46 @@ function bindSettingsEvents() {
     // === 服装 & 角色预设 ===
     bindPresetEvents('outfit');
     bindPresetEvents('character');
+
+    // === 自动生图设置 ===
+    $('#comfyui-gen-auto-enabled').on('change', function () {
+        const enabled = this.checked;
+        extension_settings[extensionName].auto_generate_enabled = enabled;
+        saveSettingsDebounced();
+        toggleAutoTrigger(enabled);
+        $('#comfyui-gen-auto-options').toggle(enabled);
+    });
+
+    $('#comfyui-gen-auto-trigger-mode').on('change', function () {
+        const mode = $(this).val();
+        extension_settings[extensionName].auto_trigger_mode = mode;
+        saveSettingsDebounced();
+        $('#comfyui-gen-auto-marker-section').toggle(mode === 'marker');
+        $('#comfyui-gen-auto-llm-section').toggle(mode === 'llm');
+    });
+
+    const autoTextInputs = [
+        { id: '#comfyui-gen-auto-marker-start', key: 'auto_marker_start' },
+        { id: '#comfyui-gen-auto-marker-end', key: 'auto_marker_end' },
+        { id: '#comfyui-gen-auto-user-tags', key: 'auto_user_tags' },
+        { id: '#comfyui-gen-auto-system-prompt', key: 'auto_llm_system_prompt' },
+    ];
+    autoTextInputs.forEach(({ id, key }) => {
+        $(id).on('input change', function () {
+            extension_settings[extensionName][key] = $(this).val();
+            saveSettingsDebounced();
+        });
+    });
+
+    $('#comfyui-gen-auto-context-length').on('input change', function () {
+        extension_settings[extensionName].auto_context_length = parseInt($(this).val()) || 5;
+        saveSettingsDebounced();
+    });
+
+    $('#comfyui-gen-auto-only-character').on('change', function () {
+        extension_settings[extensionName].auto_only_character = this.checked;
+        saveSettingsDebounced();
+    });
 }
 
 /**
@@ -584,6 +628,19 @@ function loadSettingsToUI() {
     $('#comfyui-gen-llm-interrogate-prompt').val(s.llm_interrogate_prompt || '');
     $('#comfyui-gen-llm-interrogate-section').toggle(s.interrogate_mode === 'llm');
     $('#comfyui-gen-comfyui-interrogate-section').toggle(s.interrogate_mode !== 'llm');
+
+    // 自动生图设置
+    $('#comfyui-gen-auto-enabled').prop('checked', s.auto_generate_enabled);
+    $('#comfyui-gen-auto-options').toggle(!!s.auto_generate_enabled);
+    $('#comfyui-gen-auto-trigger-mode').val(s.auto_trigger_mode || 'llm');
+    $('#comfyui-gen-auto-marker-start').val(s.auto_marker_start || '[');
+    $('#comfyui-gen-auto-marker-end').val(s.auto_marker_end || ']');
+    $('#comfyui-gen-auto-context-length').val(s.auto_context_length || 5);
+    $('#comfyui-gen-auto-only-character').prop('checked', s.auto_only_character !== false);
+    $('#comfyui-gen-auto-user-tags').val(s.auto_user_tags || '');
+    $('#comfyui-gen-auto-system-prompt').val(s.auto_llm_system_prompt || '');
+    $('#comfyui-gen-auto-marker-section').toggle(s.auto_trigger_mode === 'marker');
+    $('#comfyui-gen-auto-llm-section').toggle(s.auto_trigger_mode !== 'marker');
 }
 
 /**

@@ -89,4 +89,14 @@ export const defaultSettings = {
     // JPEG 压缩
     jpeg_compression: false,
     jpeg_quality: 85,
+
+    // === 自动生图配置 ===
+    auto_generate_enabled: false,       // 自动生图总开关
+    auto_trigger_mode: 'llm',          // 'marker' | 'llm'
+    auto_marker_start: '[',            // 标记开始符
+    auto_marker_end: ']',              // 标记结束符
+    auto_context_length: 5,            // LLM 上下文消息条数
+    auto_only_character: true,         // 只对角色消息触发
+    auto_user_tags: '',                // 用户手动附加的标签（与 LLM 结合生成）
+    auto_llm_system_prompt: '',        // 自定义 LLM 生图 system prompt（空=使用内置默认）
 };
