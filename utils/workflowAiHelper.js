@@ -4,7 +4,7 @@
  * 解析 LLM 指令，并自动格式化 JSON 占位符。
  */
 
-import { extension_settings } from '../../../../extensions.js';
+import { extension_settings, saveSettingsExtension } from '../../../../extensions.js';
 import { extensionName } from './config.js';
 import { callLLM } from './promptGen.js';
 
@@ -79,12 +79,18 @@ function extractImportantNodes(workflowObj) {
     return { importantNodes, nodeCount };
 }
 
-/**
- * 构建系统提示词
- */
 function buildAssistantSystemPrompt(importantNodes) {
-    return `你是一个 ComfyUI 工作流配置助手。你需要通过对话帮助用户修改他们的工作流 JSON，使其适配当前的自动生图插件。
-当前插件支持以下关键占位符：
+    const currentSettings = getSettings();
+    // 隐藏较长且敏感的信息，避免上下文过大
+    const safeSettings = { ...currentSettings };
+    delete safeSettings.prompt_presets;
+    delete safeSettings.workflow_presets;
+    delete safeSettings.outfits;
+    delete safeSettings.characters;
+    if (safeSettings.llm_interrogate_key) safeSettings.llm_interrogate_key = '***';
+
+    return `你是一个 ComfyUI 配置 Agent（智能助手）。你可以通过对话帮助用户修改他们的工作流 JSON 以及当前插件的设置。
+当前插件支持以下关键工作流占位符：
 - %prompt% （正向提示词）
 - %negative_prompt% （反向提示词）
 - %width% （宽度）
@@ -93,28 +99,45 @@ function buildAssistantSystemPrompt(importantNodes) {
 - %cfg_scale%
 - %seed%
 
+【全局插件设置状态】
+${JSON.stringify(safeSettings, null, 2)}
+
 以下是用户当前工作流提取出的【关键节点】：
 ${JSON.stringify(importantNodes, null, 2)}
 
 【你的任务】
-1. 分析用户的意图，找出对应的节点 ID。
-2. 如果用户要求“一键替换”或“修复工作流”，请在回复文字的最后，输出一个 JSON 代码块，表示你对工作流的修改指令。插件会自动解析该代码块并执行修改。
-3. 如果只是询问信息，则直接用自然语言回答。
+1. 分析用户的意图。如果用户想要配置 API 地址、模型名、ComfyUI 地址、开启某些开关等，你可以自动帮他们修改设置。
+2. 如果用户要求“一键替换”或“修复工作流”，你需要帮他们修改节点占位符。
+3. 你可以同时执行多项功能。如果是询问信息，则直接用自然语言解释。无论如何，你的自然语言回复应该友好且简明扼要。
+4. 如果你需要执行修改，必须在回复的最后面，输出一个且仅一个 JSON 代码块，包含你要执行的所有动作 (actions)。
 
-【JSON 修改指令块格式要求】
-如果需要修改节点，请必须使用以下 markdown 格式输出指令块：
+【JSON 动作指令块格式要求】
+请必须使用以下 markdown 格式输出，actions 是一个数组：
 \`\`\`json
 {
-  "replacements": [
-    { "node_id": "7", "target": "text", "value": "%prompt%" },
-    { "node_id": "8", "target": "text", "value": "%negative_prompt%" },
-    { "node_id": "3", "target": "seed", "value": "%seed%" }
+  "actions": [
+    {
+      "type": "update_settings",
+      "settings": {
+        "llm_interrogate_url": "https://api.example.com/v1",
+        "llm_interrogate_model": "gpt-4o",
+        "comfyui_url": "http://127.0.0.1:8188",
+        "auto_generate_enabled": true
+      }
+    },
+    {
+      "type": "fix_workflow",
+      "replacements": [
+        { "node_id": "7", "target": "text", "value": "%prompt%" },
+        { "node_id": "8", "target": "text", "value": "%negative_prompt%" },
+        { "node_id": "3", "target": "seed", "value": "%seed%" }
+      ]
+    }
   ]
 }
 \`\`\`
 
-注意：如果是 Save 格式的节点 (没有具体的 target 属性名，只有 list 时)，请填 target 为 "widget_text"（助手会自动去替换该节点中值为长文本的字段）。
-回复要简明扼要，让用户知道你做了什么。`;
+注意：如果是 Save 格式的节点 (没有具体的 target 属性名，只有 list 时)，修工作流的 target 请填 "widget_text"。`;
 }
 
 /**
@@ -138,41 +161,75 @@ function appendMessage(sender, text) {
 }
 
 /**
- * 解析并执行 LLM 返回的 JSON 指令
+ * 解析并执行 LLM 返回的 JSON 指令 (Skills)
  */
-function executeAiCommands(jsonText, workflowStr) {
+async function executeAiCommands(jsonText, workflowStr) {
     try {
-        let workflowObj = JSON.parse(workflowStr);
+        let workflowObj;
+        try { workflowObj = JSON.parse(workflowStr); } catch (e) { }
+
         let cmdObj = JSON.parse(jsonText);
-        let changed = false;
+        let workflowChanged = false;
 
-        if (cmdObj.replacements && Array.isArray(cmdObj.replacements)) {
-            // 支持 API 格式和 Save 格式
-            const isSaveFormat = workflowObj.nodes && Array.isArray(workflowObj.nodes);
+        // 兼容原版的 replacements
+        let actions = cmdObj.actions || [];
+        if (cmdObj.replacements) {
+            actions.push({ type: 'fix_workflow', replacements: cmdObj.replacements });
+        }
 
-            for (const rep of cmdObj.replacements) {
-                const id = String(rep.node_id);
-                let targetNode = null;
+        for (const action of actions) {
+            if (action.type === 'update_settings' && action.settings) {
+                const s = getSettings();
+                let settingsChanged = false;
+                for (const key in action.settings) {
+                    if (action.settings.hasOwnProperty(key)) {
+                        s[key] = action.settings[key];
+                        settingsChanged = true;
 
-                if (isSaveFormat) {
-                    targetNode = workflowObj.nodes.find(n => String(n.id) === id || String(n._name) === id);
-                } else {
-                    targetNode = workflowObj[id];
-                }
-
-                if (targetNode) {
-                    // API Format
-                    if (targetNode.inputs && rep.target !== 'widget_text') {
-                        targetNode.inputs[rep.target] = rep.value;
-                        changed = true;
+                        // 同步更新 UI
+                        const uiId = `#comfyui-gen-${key.replace(/_/g, '-')}`;
+                        const $el = $(uiId);
+                        if ($el.length) {
+                            if ($el.is(':checkbox')) {
+                                $el.prop('checked', !!action.settings[key]).trigger('change');
+                            } else {
+                                $el.val(action.settings[key]);
+                            }
+                        }
                     }
-                    // Save Format (widgets_values)
-                    else if (targetNode.widgets_values && Array.isArray(targetNode.widgets_values)) {
-                        for (let i = 0; i < targetNode.widgets_values.length; i++) {
-                            if (typeof targetNode.widgets_values[i] === 'string' && targetNode.widgets_values[i].length > 5) {
-                                targetNode.widgets_values[i] = rep.value;
-                                changed = true;
-                                break; // Only replace the first plausible long text
+                }
+                if (settingsChanged) {
+                    await saveSettingsExtension();
+                }
+            }
+
+            else if (action.type === 'fix_workflow' && action.replacements && workflowObj) {
+                const isSaveFormat = workflowObj.nodes && Array.isArray(workflowObj.nodes);
+
+                for (const rep of action.replacements) {
+                    const id = String(rep.node_id);
+                    let targetNode = null;
+
+                    if (isSaveFormat) {
+                        targetNode = workflowObj.nodes.find(n => String(n.id) === id || String(n._name) === id);
+                    } else {
+                        targetNode = workflowObj[id];
+                    }
+
+                    if (targetNode) {
+                        // API Format
+                        if (targetNode.inputs && rep.target !== 'widget_text') {
+                            targetNode.inputs[rep.target] = rep.value;
+                            workflowChanged = true;
+                        }
+                        // Save Format (widgets_values)
+                        else if (targetNode.widgets_values && Array.isArray(targetNode.widgets_values)) {
+                            for (let i = 0; i < targetNode.widgets_values.length; i++) {
+                                if (typeof targetNode.widgets_values[i] === 'string' && targetNode.widgets_values[i].length > 5) {
+                                    targetNode.widgets_values[i] = rep.value;
+                                    workflowChanged = true;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -180,12 +237,12 @@ function executeAiCommands(jsonText, workflowStr) {
             }
         }
 
-        if (changed) {
+        if (workflowChanged) {
             return JSON.stringify(workflowObj, null, 2);
         }
-        return null; // 没有修改
+        return null;
     } catch (e) {
-        console.error('执行 AI 命令失败:', e);
+        console.error(LOG_PREFIX, '执行 AI 命令失败:', e);
         return null;
     }
 }
@@ -249,10 +306,10 @@ async function sendChatMessage(userMessage) {
         // 检查是否有 json 命令块
         const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)```/i);
         if (jsonMatch) {
-            const newWorkflowStr = executeAiCommands(jsonMatch[1], workflowStr);
+            const newWorkflowStr = await executeAiCommands(jsonMatch[1], workflowStr);
             if (newWorkflowStr) {
                 $('#comfyui-gen-workflow').val(newWorkflowStr).trigger('input');
-                toastr.success('已自动应用工作流修改', 'ComfyUI AI 助手');
+                toastr.success('AI 已自动应用设置/工作流修改！', 'ComfyUI AI 助手');
             }
         }
 
