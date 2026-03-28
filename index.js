@@ -685,11 +685,11 @@ async function updateExtension() {
     btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 更新中...').prop('disabled', true);
 
     try {
-        let headers = {
-            'Content-Type': 'application/json'
-        };
+        // 动态获取扩展文件夹名（不硬编码，防止重命名后失效）
+        const folderName = extensionFolderPath.split('/').pop();
+        console.log('[ComfyUI Gen] 更新扩展，文件夹名:', folderName);
 
-        // Attempt to get CSRF token from ST global variables (window.token is standard in ST 1.11+)
+        const headers = { 'Content-Type': 'application/json' };
         if (window.token) {
             headers['X-CSRF-Token'] = window.token;
         }
@@ -697,21 +697,40 @@ async function updateExtension() {
         const response = await fetch('/api/extensions/update', {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify({
-                extension: 'st-com-chara',
-                global: false,
-            }),
+            body: JSON.stringify({ extension: folderName, global: false }),
         });
 
+        // ★ 核心防御：始终用 text() 读取，手动解析，防止 HTML 导致崩溃
+        const responseText = await response.text();
+        console.log('[ComfyUI Gen] 更新响应:', response.status, responseText.substring(0, 200));
+
+        // 检测 HTML 响应（404/登录页/代理拦截）
+        if (responseText.trimStart().startsWith('<')) {
+            toastr.error(
+                '更新接口返回了 HTML 页面。\n可能原因：\n' +
+                '• 扩展名 "' + folderName + '" 未被酒馆识别\n' +
+                '• 酒馆版本不支持此 API\n\n' +
+                '请手动执行: cd 扩展目录 && git pull',
+                '更新失败'
+            );
+            return;
+        }
+
         if (response.ok) {
+            try {
+                const data = JSON.parse(responseText);
+                if (data.isUpToDate) {
+                    toastr.info('插件已是最新版本', 'ComfyUI Gen');
+                    return;
+                }
+            } catch (_) { /* 非JSON也算成功 */ }
             toastr.success('更新成功，即将刷新页面...');
             setTimeout(() => location.reload(), 1500);
         } else {
-            const errText = await response.text();
-            toastr.error('更新失败: ' + errText);
+            toastr.error('更新失败 (HTTP ' + response.status + '): ' + responseText.substring(0, 150));
         }
     } catch (e) {
-        console.error('[ComfyUI Gen] 更新失败:', e);
+        console.error('[ComfyUI Gen] 更新异常:', e);
         toastr.error('更新失败: ' + e.message);
     } finally {
         btn.html(originalHtml).prop('disabled', false);
