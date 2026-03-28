@@ -956,7 +956,7 @@ function bindWorkflowPresetEvents() {
         a.click();
     });
 
-    // 一键搬运（从 st-chatu8 comfyui_profiles）
+    // 一键搬运（从 st-chatu8 自动扫描工作流数据）
     $('#comfyui-gen-migrate-workflow-presets').on('click', function () {
         console.log('[ComfyUI Gen] 一键搬运工作流按钮被点击');
 
@@ -966,59 +966,119 @@ function bindWorkflowPresetEvents() {
             return;
         }
 
-        // 旧插件工作流存储在 comfyui_profiles 中
-        const profiles = oldExt.comfyui_profiles;
-        if (!profiles || typeof profiles !== 'object') {
-            console.log('[ComfyUI Gen] st-chatu8 数据中无 comfyui_profiles:', Object.keys(oldExt).slice(0, 20));
+        // 打印完整的字段列表用于调试
+        const allKeys = Object.keys(oldExt);
+        console.log('[ComfyUI Gen] st-chatu8 全部字段 (' + allKeys.length + '个):', allKeys);
 
-            // 也尝试直接读 workerflows 字段
-            const workflows = oldExt.workerflows || oldExt.workflows;
-            if (!workflows) {
-                toastr.warning('找到了 st-chatu8 数据，但无工作流预设。\n可用字段: ' + Object.keys(oldExt).slice(0, 20).join(', '), '工作流搬运');
-                return;
-            }
-        }
-
+        // 智能扫描：自动识别包含工作流数据的字段
+        // 工作流数据特征：对象中的 value 内包含 class_type / inputs / seed / steps 等 ComfyUI 关键字
         if (!s.workflow_presets) s.workflow_presets = [];
         let migratedCount = 0;
 
-        // 从 comfyui_profiles 迁移
-        if (profiles && typeof profiles === 'object') {
-            Object.keys(profiles).forEach(key => {
+        // 辅助函数：检测一个值是否可能是 ComfyUI 工作流 JSON
+        function looksLikeWorkflow(val) {
+            if (typeof val === 'string' && val.length > 50) {
+                return val.includes('class_type') || val.includes('inputs') || val.includes('KSampler');
+            }
+            if (typeof val === 'object' && val !== null) {
+                const str = JSON.stringify(val);
+                return str.includes('class_type') || str.includes('KSampler') || str.includes('CheckpointLoader');
+            }
+            return false;
+        }
+
+        // 辅助函数：尝试从某个对象/字典中提取工作流预设
+        function extractPresetsFromObj(obj, sourceLabel) {
+            if (!obj || typeof obj !== 'object') return;
+            Object.keys(obj).forEach(key => {
                 if (s.workflow_presets.some(p => p.name === key)) return;
-                const value = profiles[key];
+                const value = obj[key];
                 let jsonStr = '';
 
                 if (typeof value === 'string') {
                     jsonStr = value;
-                } else if (typeof value === 'object') {
-                    // 可能是 { workerflow: "..." } 或其他嵌套结构
-                    jsonStr = value.workerflow || value.workflow || value.editWorker || JSON.stringify(value);
+                } else if (typeof value === 'object' && value !== null) {
+                    // 直接是工作流 JSON 对象
+                    if (value.class_type || Object.values(value).some(n => n?.class_type)) {
+                        jsonStr = JSON.stringify(value);
+                    }
+                    // 嵌套: { workerflow: "...", workflow: "..." }
+                    else if (value.workerflow || value.workflow || value.editWorker) {
+                        jsonStr = value.workerflow || value.workflow || value.editWorker;
+                        if (typeof jsonStr === 'object') jsonStr = JSON.stringify(jsonStr);
+                    }
+                    // 其他对象也序列化
+                    else {
+                        jsonStr = JSON.stringify(value);
+                    }
                 }
 
-                s.workflow_presets.push({
-                    id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                    name: key,
-                    workflow_json: jsonStr,
-                });
-                migratedCount++;
+                if (jsonStr && jsonStr.length > 10) {
+                    s.workflow_presets.push({
+                        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                        name: key,
+                        workflow_json: jsonStr,
+                    });
+                    migratedCount++;
+                    console.log('[ComfyUI Gen] 迁移工作流:', key, '来源:', sourceLabel);
+                }
             });
         }
 
-        // 也尝试从 workerflows / workflows 备选字段迁移
-        const altWorkflows = oldExt.workerflows || oldExt.workflows;
-        if (altWorkflows && typeof altWorkflows === 'object') {
-            Object.keys(altWorkflows).forEach(key => {
-                if (s.workflow_presets.some(p => p.name === key)) return;
-                const value = altWorkflows[key];
-                let jsonStr = typeof value === 'string' ? value : JSON.stringify(value);
-                s.workflow_presets.push({
-                    id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                    name: key,
-                    workflow_json: jsonStr,
-                });
-                migratedCount++;
+        // 策略1: 直接匹配已知字段名
+        const knownWorkflowKeys = ['comfyui_profiles', 'workerflows', 'workflows', 'workflowPresets', 'workflow_presets'];
+        knownWorkflowKeys.forEach(fieldName => {
+            if (oldExt[fieldName] && typeof oldExt[fieldName] === 'object') {
+                console.log('[ComfyUI Gen] 找到已知字段:', fieldName, '类型:', typeof oldExt[fieldName]);
+                extractPresetsFromObj(oldExt[fieldName], fieldName);
+            }
+        });
+
+        // 策略2: 智能扫描所有字段，查找包含工作流数据的对象
+        if (migratedCount === 0) {
+            console.log('[ComfyUI Gen] 已知字段未命中，启动智能扫描...');
+            const foundWorkflowFields = [];
+
+            allKeys.forEach(key => {
+                const value = oldExt[key];
+                // 跳过简单值
+                if (typeof value !== 'object' || value === null) return;
+                if (Array.isArray(value)) return;
+
+                // 检查这个对象的 value 是否包含工作流
+                const subKeys = Object.keys(value);
+                if (subKeys.length === 0) return;
+
+                // 方式A: 值本身就是 {name: workflow_json} 字典
+                const firstSubVal = value[subKeys[0]];
+                if (looksLikeWorkflow(firstSubVal)) {
+                    foundWorkflowFields.push(key);
+                    extractPresetsFromObj(value, key);
+                }
+                // 方式B: 值嵌套 { workerflow: "..." }
+                else if (typeof firstSubVal === 'object' && firstSubVal !== null) {
+                    const inner = firstSubVal.workerflow || firstSubVal.workflow;
+                    if (inner && looksLikeWorkflow(inner)) {
+                        foundWorkflowFields.push(key);
+                        extractPresetsFromObj(value, key);
+                    }
+                }
             });
+
+            if (foundWorkflowFields.length > 0) {
+                console.log('[ComfyUI Gen] 智能扫描找到工作流字段:', foundWorkflowFields);
+            } else {
+                console.log('[ComfyUI Gen] 智能扫描未找到工作流数据');
+                // 打印每个字段的类型和大小，帮助人工排查
+                allKeys.forEach(key => {
+                    const val = oldExt[key];
+                    const type = typeof val;
+                    const size = type === 'object' ? JSON.stringify(val).length : String(val).length;
+                    if (type === 'object' && val !== null && !Array.isArray(val)) {
+                        console.log(`  [${key}] 类型:object, 子键:${Object.keys(val).join(',')}`.substring(0, 200));
+                    }
+                });
+            }
         }
 
         if (migratedCount > 0) {
@@ -1026,7 +1086,11 @@ function bindWorkflowPresetEvents() {
             updateWorkflowPresetDropdown();
             toastr.success('成功搬运了 ' + migratedCount + ' 个工作流预设！', '工作流搬运');
         } else {
-            toastr.info('没有新的可搬运工作流（可能已存在同名预设）', '工作流搬运');
+            toastr.warning(
+                '未找到可搬运的工作流数据。\n请打开 F12 控制台查看 [ComfyUI Gen] 日志获取详细字段列表。\n\n' +
+                '共 ' + allKeys.length + ' 个字段，前10个: ' + allKeys.slice(0, 10).join(', '),
+                '工作流搬运'
+            );
         }
     });
 
