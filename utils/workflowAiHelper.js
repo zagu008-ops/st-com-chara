@@ -6,7 +6,7 @@
 
 import { extension_settings } from '../../../../extensions.js';
 import { extensionName } from './config.js';
-import { callOpenAI } from './promptGen.js';
+import { callLLM } from './promptGen.js';
 
 const LOG_PREFIX = '[ComfyUI Gen][AI Helper]';
 
@@ -121,7 +121,7 @@ export async function autoFormatWorkflowWithAI(rawJsonStr) {
         const userPrompt = `以下是工作流的关键节点列表：\n${JSON.stringify(importantNodes, null, 2)}`;
 
         // 3. 调用 LLM
-        const analysisResultStr = await callOpenAI(s.ai_url, s.ai_model, s.ai_key, systemPrompt, userPrompt, 800, 0.1);
+        const analysisResultStr = await callLLM(systemPrompt, userPrompt, 800, 0.1);
 
         if (!analysisResultStr) {
             throw new Error('LLM 返回为空');

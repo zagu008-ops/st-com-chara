@@ -119,9 +119,11 @@ function buildUserPrompt(recentMessages, userTags = '') {
  * 复用反推 Tab 中的 LLM 配置
  * @param {string} systemPrompt
  * @param {string} userPrompt
+ * @param {number} maxTokens
+ * @param {number} temperature
  * @returns {Promise<string>} 生成的提示词
  */
-async function callLLM(systemPrompt, userPrompt) {
+export async function callLLM(systemPrompt, userPrompt, maxTokens = 500, temperature = 0.7) {
     const s = getSettings();
     const apiUrl = s.llm_interrogate_url;
     const apiKey = s.llm_interrogate_key;
@@ -150,8 +152,8 @@ async function callLLM(systemPrompt, userPrompt) {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
         ],
-        temperature: 0.7,
-        max_tokens: 500,
+        temperature: temperature,
+        max_tokens: maxTokens,
     };
 
     console.log(`${LOG_PREFIX} 请求 body: model=${body.model}, messages=${body.messages.length}条, temperature=${body.temperature}`);
