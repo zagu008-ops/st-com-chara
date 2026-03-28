@@ -829,18 +829,28 @@ async function updateExtension() {
     try {
         // 动态获取扩展文件夹名（不硬编码，防止重命名后失效）
         const folderName = extensionFolderPath.split('/').pop();
-        console.log('[ComfyUI Gen] 更新扩展，文件夹名:', folderName);
+        console.log('[ComfyUI Gen] 尝试更新扩展 (Local)，文件夹名:', folderName);
 
         const headers = { 'Content-Type': 'application/json' };
         if (window.token) {
             headers['X-CSRF-Token'] = window.token;
         }
 
-        const response = await fetch('/api/extensions/update', {
+        let response = await fetch('/api/extensions/update', {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({ extensionName: folderName, global: false }),
         });
+
+        // 如果是 404 目录不存在，说明用户可能是全域(global)安装，自动重试
+        if (response.status === 404) {
+            console.log('[ComfyUI Gen] Local 目录未找到，尝试作为 Global 扩展更新');
+            response = await fetch('/api/extensions/update', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ extensionName: folderName, global: true }),
+            });
+        }
 
         // ★ 核心防御：始终用 text() 读取，手动解析，防止 HTML 导致崩溃
         const responseText = await response.text();
