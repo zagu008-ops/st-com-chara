@@ -839,7 +839,7 @@ async function updateExtension() {
         const response = await fetch('/api/extensions/update', {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify({ extension: folderName, global: false }),
+            body: JSON.stringify({ extensionName: folderName, global: false }),
         });
 
         // ★ 核心防御：始终用 text() 读取，手动解析，防止 HTML 导致崩溃
