@@ -237,9 +237,22 @@
                             </div>
                         </div>
                         <div class="comfyui-gen-field">
-                            <label for="comfyui-gen-workflow">
-                                工作流 (JSON)
-                                <small>从 ComfyUI 导出 API 格式，使用 %prompt% %negative_prompt% "%steps%" 等占位符</small>
+                            <label for="comfyui-gen-workflow"
+                                style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>工作流 (JSON)
+                                    <small style="display: block; margin-top: 4px;">从 ComfyUI 导出 API 格式，使用 %prompt%
+                                        %negative_prompt% "%steps%" 等占位符</small>
+                                </span>
+                                <div style="display: flex; gap: 8px;">
+                                    <button id="comfyui-gen-workflow-ai-helper" class="comfyui-gen-btn secondary"
+                                        title="使用 LLM 自动将选定节点的文本/数值替换为对应占位符">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> ✨ AI 助手配置
+                                    </button>
+                                    <button id="comfyui-gen-test-workflow" class="comfyui-gen-btn"
+                                        title="使用默认尺寸和随机种子测试当前工作流">
+                                        <i class="fa-solid fa-play"></i> 测试生图
+                                    </button>
+                                </div>
                             </label>
                             <textarea id="comfyui-gen-workflow" rows="6" class="comfyui-gen-code"
                                 placeholder='粘贴 ComfyUI API JSON 工作流...'></textarea>

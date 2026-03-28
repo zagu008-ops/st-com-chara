@@ -15,6 +15,7 @@ import { interrogateImage } from './utils/interrogator.js';
 import { insertResultsToChat } from './utils/imageInserter.js';
 import { initFab } from './utils/fab.js';
 import { registerAutoTrigger, toggleAutoTrigger } from './utils/autoTrigger.js';
+import { autoFormatWorkflowWithAI } from './utils/workflowAiHelper.js';
 
 // ============ 初始化 ============
 
@@ -1112,6 +1113,70 @@ function bindWorkflowPresetEvents() {
         a.href = URL.createObjectURL(blob);
         a.download = name + '.json';
         a.click();
+    });
+
+    // --- AI 助手自动格式化工作流 ---
+    $('#comfyui-gen-workflow-ai-helper').on('click', async function () {
+        const btn = $(this);
+        const textarea = $('#comfyui-gen-workflow');
+        const rawJson = textarea.val();
+
+        if (!rawJson || !rawJson.trim()) {
+            toastr.warning('请先粘贴 ComfyUI 工作流 API JSON', 'ComfyUI AI 助手');
+            return;
+        }
+
+        btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 正在 AI 分析...').prop('disabled', true);
+        try {
+            const formattedJson = await autoFormatWorkflowWithAI(rawJson);
+            if (formattedJson) {
+                textarea.val(formattedJson);
+                // 触发 change 事件保存设置
+                textarea.trigger('input');
+                toastr.success('AI 已成功分析并替换占位符！这只是推测，请检查 JSON 内容。', 'ComfyUI AI 助手');
+            }
+        } catch (e) {
+            toastr.error('AI 助手执行失败: ' + e.message, 'ComfyUI AI 助手');
+        } finally {
+            btn.html('<i class="fa-solid fa-wand-magic-sparkles"></i> ✨ AI 助手配置').prop('disabled', false);
+        }
+    });
+
+    // --- 测试当前工作流 ---
+    $('#comfyui-gen-test-workflow').on('click', async function () {
+        const btn = $(this);
+        const s = extension_settings[extensionName];
+
+        // 动态读取当前的宽高，作为测试参数
+        const testParams = {
+            prompt: 'masterpiece, best quality, 1girl, solo, smile',
+            negative_prompt: 'worst quality, low quality, bad anatomy, text, signature',
+            width: parseInt(s.default_params?.width) || 512,
+            height: parseInt(s.default_params?.height) || 768,
+            steps: parseInt(s.default_params?.steps) || 20,
+            cfg_scale: parseFloat(s.default_params?.cfg_scale) || 7,
+            seed: Math.floor(Math.random() * 2147483647)
+        };
+
+        toastr.info('发送生图测试请求中...', 'ComfyUI 测试');
+        btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 正在生成...').prop('disabled', true);
+
+        try {
+            // 在调用前强制把最新的 JSON 同步到 settings 中
+            s.workflow_json = $('#comfyui-gen-workflow').val();
+
+            const results = await sendToComfyUI(testParams);
+            if (results && results.length > 0) {
+                toastr.success(`测试生图成功，生成了 ${results.length} 张图片！去聊天窗口或后台查看。`, 'ComfyUI 测试');
+                insertResultsToChat(results, '测试生图结果: ' + testParams.prompt);
+            } else {
+                toastr.warning('ComfyUI 未返回图片数据', 'ComfyUI 测试');
+            }
+        } catch (e) {
+            toastr.error('测试生图失败: ' + e.message, 'ComfyUI 测试');
+        } finally {
+            btn.html('<i class="fa-solid fa-play"></i> 测试生图').prop('disabled', false);
+        }
     });
 
     // 一键搬运（从 st-chatu8 自动扫描工作流数据）
