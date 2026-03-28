@@ -195,7 +195,7 @@ function executeAiCommands(jsonText, workflowStr) {
  */
 async function sendChatMessage(userMessage) {
     const s = getSettings();
-    if (!s.ai_url || !s.ai_model) {
+    if (!s.llm_interrogate_url || !s.llm_interrogate_model) {
         toastr.error('未配置 LLM (请先配置全局的大语言模型 API)', 'ComfyUI AI 助手');
         return;
     }
