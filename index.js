@@ -15,7 +15,7 @@ import { interrogateImage } from './utils/interrogator.js';
 import { insertResultsToChat } from './utils/imageInserter.js';
 import { initFab } from './utils/fab.js';
 import { registerAutoTrigger, toggleAutoTrigger } from './utils/autoTrigger.js';
-import { initAiHelperEvents } from './utils/workflowAiHelper.js';
+import { initAiHelperEvents } from './utils/workflowAiHelper.js?v=2';
 
 // ============ 初始化 ============
 
