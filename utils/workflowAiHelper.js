@@ -168,7 +168,9 @@ async function executeAiCommands(jsonText, workflowStr) {
         let workflowObj;
         try { workflowObj = JSON.parse(workflowStr); } catch (e) { }
 
-        let cmdObj = JSON.parse(jsonText);
+        // 清理 LLM 常犯的错误：允许末尾逗号和换行
+        let cleanJsonText = jsonText.replace(/,\s*([\]}])/g, '$1');
+        let cmdObj = JSON.parse(cleanJsonText);
         let workflowChanged = false;
 
         // 兼容原版的 replacements
@@ -303,13 +305,27 @@ async function sendChatMessage(userMessage) {
 
         chatHistory.push({ role: 'assistant', content: aiResponse });
 
-        // 检查是否有 json 命令块
-        const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)```/i);
-        if (jsonMatch) {
-            const newWorkflowStr = await executeAiCommands(jsonMatch[1], workflowStr);
+        // 尝试更鲁棒的 JSON 提取
+        let jsonText = null;
+        const jsonBlockMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
+        if (jsonBlockMatch) {
+            jsonText = jsonBlockMatch[1];
+        } else {
+            // 退一步，尝试直接寻找最外层的 {}
+            const firstBrace = aiResponse.indexOf('{');
+            const lastBrace = aiResponse.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                jsonText = aiResponse.substring(firstBrace, lastBrace + 1);
+            }
+        }
+
+        if (jsonText) {
+            const newWorkflowStr = await executeAiCommands(jsonText, workflowStr);
             if (newWorkflowStr) {
                 $('#comfyui-gen-workflow').val(newWorkflowStr).trigger('input');
                 toastr.success('AI 已自动应用设置/工作流修改！', 'ComfyUI AI 助手');
+            } else {
+                console.warn(LOG_PREFIX, '提取到 JSON 但执行失败或无变化', jsonText);
             }
         }
 
