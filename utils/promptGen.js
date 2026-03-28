@@ -6,6 +6,8 @@
 import { extension_settings } from '../../../../extensions.js';
 import { extensionName } from './config.js';
 
+const LOG_PREFIX = '[ComfyUI Gen][PromptGen]';
+
 /**
  * 获取当前设置
  */
@@ -40,14 +42,20 @@ function getRecentMessages(count = 5) {
     try {
         const context = SillyTavern.getContext();
         const chat = context.chat || [];
+        console.log(`${LOG_PREFIX} 聊天记录总数: ${chat.length}，取最近 ${count} 条`);
         const recent = chat.slice(-count);
-        return recent.map(msg => ({
+        const result = recent.map(msg => ({
             role: msg.is_user ? 'user' : 'character',
             name: msg.name || (msg.is_user ? '用户' : '角色'),
             content: (msg.mes || '').substring(0, 500), // 截断避免太长
         }));
+        console.log(`${LOG_PREFIX} 获取到 ${result.length} 条上下文消息:`);
+        result.forEach((msg, i) => {
+            console.log(`${LOG_PREFIX}   [${i}] ${msg.name} (${msg.role}): ${msg.content.substring(0, 60)}...`);
+        });
+        return result;
     } catch (e) {
-        console.warn('[ComfyUI Gen] 获取聊天记录失败:', e);
+        console.error(`${LOG_PREFIX} ❌ 获取聊天记录失败:`, e);
         return [];
     }
 }
@@ -64,14 +72,21 @@ function buildSystemPrompt(character, outfit) {
 
     // 注入角色信息
     if (character) {
+        console.log(`${LOG_PREFIX} 注入角色信息: ${character.name}, tags=${(character.positivePrompt || '').substring(0, 60)}`);
         systemPrompt += `\n\n<角色信息>\n角色名称: ${character.name || '未知'}\n角色外观标签: ${character.positivePrompt || '无'}\n</角色信息>`;
+    } else {
+        console.log(`${LOG_PREFIX} 无激活角色预设`);
     }
 
     // 注入服装信息
     if (outfit) {
+        console.log(`${LOG_PREFIX} 注入服装信息: ${outfit.name}, tags=${(outfit.positivePrompt || '').substring(0, 60)}`);
         systemPrompt += `\n\n<当前服装>\n服装名称: ${outfit.name || '未知'}\n服装标签: ${outfit.positivePrompt || '无'}\n</当前服装>`;
+    } else {
+        console.log(`${LOG_PREFIX} 无激活服装预设`);
     }
 
+    console.log(`${LOG_PREFIX} System prompt 长度: ${systemPrompt.length} 字符`);
     return systemPrompt;
 }
 
@@ -90,10 +105,12 @@ function buildUserPrompt(recentMessages, userTags = '') {
 
     if (userTags && userTags.trim()) {
         prompt += `\n\n用户额外要求的标签/描述（请融合到你的输出中）：\n${userTags.trim()}`;
+        console.log(`${LOG_PREFIX} 用户附加标签已注入: ${userTags.trim().substring(0, 60)}`);
     }
 
     prompt += '\n\n请输出 danbooru-style 逗号分隔标签，不要有任何解释。';
 
+    console.log(`${LOG_PREFIX} User prompt 长度: ${prompt.length} 字符`);
     return prompt;
 }
 
@@ -110,11 +127,17 @@ async function callLLM(systemPrompt, userPrompt) {
     const apiKey = s.llm_interrogate_key;
     const model = s.llm_interrogate_model;
 
+    console.log(`${LOG_PREFIX} === 开始调用 LLM ===`);
+    console.log(`${LOG_PREFIX} API URL: ${apiUrl || '(未设置!)'}`);
+    console.log(`${LOG_PREFIX} Model: ${model || '(未设置!)'}`);
+    console.log(`${LOG_PREFIX} API Key: ${apiKey ? '已设置 (长度' + apiKey.length + ')' : '(未设置)'}`);
+
     if (!apiUrl || !model) {
         throw new Error('LLM 配置未设置，请在「反推」Tab 中配置 LLM API 地址和模型名称');
     }
 
     const url = apiUrl.replace(/\/+$/, '') + '/chat/completions';
+    console.log(`${LOG_PREFIX} 请求地址: ${url}`);
 
     const headers = { 'Content-Type': 'application/json' };
     if (apiKey) {
@@ -131,22 +154,29 @@ async function callLLM(systemPrompt, userPrompt) {
         max_tokens: 500,
     };
 
-    console.log('[ComfyUI Gen] 调用 LLM 生成图片提示词...');
+    console.log(`${LOG_PREFIX} 请求 body: model=${body.model}, messages=${body.messages.length}条, temperature=${body.temperature}`);
+    console.log(`${LOG_PREFIX} 发送 LLM 请求...`);
 
+    const startTime = Date.now();
     const response = await fetch(url, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(body),
     });
+    const elapsed = Date.now() - startTime;
+
+    console.log(`${LOG_PREFIX} LLM 响应: status=${response.status}, 耗时=${elapsed}ms`);
 
     if (!response.ok) {
         const errText = await response.text();
+        console.error(`${LOG_PREFIX} ❌ LLM API 错误:`, errText.substring(0, 300));
         throw new Error(`LLM API 返回错误 (${response.status}): ${errText.substring(0, 200)}`);
     }
 
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content || '';
-    console.log('[ComfyUI Gen] LLM 返回原始内容:', content.substring(0, 200));
+    console.log(`${LOG_PREFIX} ✅ LLM 返回成功，内容长度=${content.length}`);
+    console.log(`${LOG_PREFIX} LLM 原始返回:\n${content}`);
     return content;
 }
 
@@ -165,6 +195,7 @@ function parseImageTags(llmResponse) {
     // 尝试提取 <image> 或 <images> 标签内容
     const imageMatch = text.match(/<images?>([\s\S]*?)<\/images?>/i);
     if (imageMatch) {
+        console.log(`${LOG_PREFIX} 检测到 <image> 标签，提取内容`);
         text = imageMatch[1];
     }
 
@@ -179,7 +210,7 @@ function parseImageTags(llmResponse) {
         .replace(/^[\s,]+|[\s,]+$/g, '')
         .trim();
 
-    console.log('[ComfyUI Gen] 解析后的提示词:', text.substring(0, 200));
+    console.log(`${LOG_PREFIX} 解析后的最终 tags (长度=${text.length}): ${text}`);
     return text;
 }
 
@@ -189,6 +220,8 @@ function parseImageTags(llmResponse) {
  * @returns {Promise<string>} 生成的 danbooru-style prompt
  */
 export async function generateImagePrompt(userTags = '') {
+    console.log(`${LOG_PREFIX} ===== generateImagePrompt 开始 =====`);
+
     const s = getSettings();
     const contextLength = s.auto_context_length || 5;
 
@@ -210,7 +243,9 @@ export async function generateImagePrompt(userTags = '') {
     const llmResponse = await callLLM(systemPrompt, userPrompt);
 
     // 解析结果
-    return parseImageTags(llmResponse);
+    const tags = parseImageTags(llmResponse);
+    console.log(`${LOG_PREFIX} ===== generateImagePrompt 完成 =====`);
+    return tags;
 }
 
 /**

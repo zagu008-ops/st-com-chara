@@ -11,6 +11,7 @@ import { insertResultsToChat } from './imageInserter.js';
 import { generateImagePrompt } from './promptGen.js';
 
 let isGenerating = false; // 防重复触发锁
+const LOG_PREFIX = '[ComfyUI Gen][AutoTrigger]';
 
 /**
  * 获取当前设置
@@ -65,80 +66,124 @@ function showToast(message, type = 'info') {
  * @param {number} messageIndex - 消息索引
  */
 async function onMessageReceived(messageIndex) {
+    console.log(`${LOG_PREFIX} ========== 事件触发 ==========`);
+    console.log(`${LOG_PREFIX} MESSAGE_RECEIVED 触发，消息索引: ${messageIndex}`);
+
     const s = getSettings();
 
     // 检查总开关
-    if (!s.enabled || !s.auto_generate_enabled) return;
+    if (!s.enabled) {
+        console.log(`${LOG_PREFIX} ❌ 插件未启用 (enabled=${s.enabled})，跳过`);
+        return;
+    }
+    if (!s.auto_generate_enabled) {
+        console.log(`${LOG_PREFIX} ❌ 自动生图未启用 (auto_generate_enabled=${s.auto_generate_enabled})，跳过`);
+        return;
+    }
+    console.log(`${LOG_PREFIX} ✅ 开关检查通过 (enabled=${s.enabled}, auto_generate_enabled=${s.auto_generate_enabled})`);
 
     // 防重复触发
     if (isGenerating) {
-        console.log('[ComfyUI Gen] 自动生图: 上一张还在生成中，跳过');
+        console.log(`${LOG_PREFIX} ⏸️ 上一张还在生成中 (isGenerating=true)，跳过`);
         return;
     }
 
     try {
         // 获取消息内容
-        const context = SillyTavern.getContext();
-        const chat = context.chat || [];
-        const message = chat[messageIndex];
-        if (!message) return;
-
-        // 只对角色消息触发（可配置）
-        if (s.auto_only_character && message.is_user) {
-            console.log('[ComfyUI Gen] 自动生图: 用户消息，跳过');
+        let context;
+        try {
+            context = SillyTavern.getContext();
+        } catch (ctxErr) {
+            console.error(`${LOG_PREFIX} ❌ 获取 SillyTavern context 失败:`, ctxErr);
             return;
         }
 
+        const chat = context.chat || [];
+        console.log(`${LOG_PREFIX} 当前聊天记录总条数: ${chat.length}`);
+
+        const message = chat[messageIndex];
+        if (!message) {
+            console.log(`${LOG_PREFIX} ❌ 消息索引 ${messageIndex} 对应的消息不存在，跳过`);
+            return;
+        }
+
+        console.log(`${LOG_PREFIX} 消息详情: is_user=${message.is_user}, name=${message.name}, 文本前80字=${(message.mes || '').substring(0, 80)}`);
+
+        // 只对角色消息触发（可配置）
+        if (s.auto_only_character && message.is_user) {
+            console.log(`${LOG_PREFIX} ⏭️ 用户消息，auto_only_character=${s.auto_only_character}，跳过`);
+            return;
+        }
+        console.log(`${LOG_PREFIX} ✅ 消息类型检查通过 (is_user=${message.is_user})`);
+
         const messageText = message.mes || '';
-        console.log('[ComfyUI Gen] 自动生图: 检测到新消息，模式:', s.auto_trigger_mode);
+        console.log(`${LOG_PREFIX} 触发模式: ${s.auto_trigger_mode}`);
 
         let dynamicPrompt = '';
 
         if (s.auto_trigger_mode === 'marker') {
             // === 标记模式 ===
+            console.log(`${LOG_PREFIX} [标记模式] 开始标记='${s.auto_marker_start}', 结束标记='${s.auto_marker_end}'`);
             const extracted = extractMarkerPrompt(messageText, s.auto_marker_start, s.auto_marker_end);
             if (!extracted) {
-                console.log('[ComfyUI Gen] 自动生图: 未检测到标记，跳过');
+                console.log(`${LOG_PREFIX} [标记模式] ❌ 未检测到标记，跳过。消息内容: ${messageText.substring(0, 150)}`);
                 return;
             }
             dynamicPrompt = extracted;
-            console.log('[ComfyUI Gen] 标记提取成功:', dynamicPrompt.substring(0, 80));
+            console.log(`${LOG_PREFIX} [标记模式] ✅ 标记提取成功: ${dynamicPrompt.substring(0, 100)}`);
 
         } else if (s.auto_trigger_mode === 'llm') {
             // === LLM 模式 ===
+            console.log(`${LOG_PREFIX} [LLM模式] 开始调用 LLM 生成提示词...`);
+            console.log(`${LOG_PREFIX} [LLM模式] LLM 配置: url=${s.llm_interrogate_url || '(未设置)'}, model=${s.llm_interrogate_model || '(未设置)'}, key=${s.llm_interrogate_key ? '已设置' : '(未设置)'}`);
             showToast('正在用 LLM 生成图片描述...', 'info');
 
             // 获取用户手动附加的标签
             const userTags = s.auto_user_tags || '';
+            console.log(`${LOG_PREFIX} [LLM模式] 用户附加标签: ${userTags || '(无)'}`);
+
             dynamicPrompt = await generateImagePrompt(userTags);
 
             if (!dynamicPrompt) {
-                console.log('[ComfyUI Gen] 自动生图: LLM 未返回有效提示词');
+                console.log(`${LOG_PREFIX} [LLM模式] ❌ LLM 未返回有效提示词`);
+                showToast('LLM 未返回有效提示词', 'error');
                 return;
             }
-            console.log('[ComfyUI Gen] LLM 生成提示词:', dynamicPrompt.substring(0, 100));
+            console.log(`${LOG_PREFIX} [LLM模式] ✅ LLM 生成的最终 tags: ${dynamicPrompt.substring(0, 200)}`);
         } else {
-            return; // 未知模式
+            console.log(`${LOG_PREFIX} ❌ 未知触发模式: '${s.auto_trigger_mode}'，跳过`);
+            return;
         }
 
         // 开始生图
         isGenerating = true;
         showToast('开始自动生成图片...', 'info');
 
+        console.log(`${LOG_PREFIX} [ComfyUI] 开始构建 payload...`);
         const params = buildPayload(dynamicPrompt);
-        console.log('[ComfyUI Gen] 自动生图: 发送到 ComfyUI, prompt 长度:', params.prompt?.length);
+        console.log(`${LOG_PREFIX} [ComfyUI] ✅ payload 构建完成，prompt 长度=${params.prompt?.length}, negative_prompt 长度=${params.negative_prompt?.length}`);
+        console.log(`${LOG_PREFIX} [ComfyUI] 最终 prompt 前 200 字: ${params.prompt?.substring(0, 200)}`);
+        console.log(`${LOG_PREFIX} [ComfyUI] 发送生图请求到 ComfyUI...`);
 
         const results = await sendToComfyUI(params);
-        insertResultsToChat(results, params.prompt);
+        console.log(`${LOG_PREFIX} [ComfyUI] ✅ ComfyUI 返回结果: ${results?.length || 0} 个文件`);
 
-        showToast('图片生成完成！', 'success');
-        console.log('[ComfyUI Gen] 自动生图完成');
+        if (results && results.length > 0) {
+            insertResultsToChat(results, params.prompt);
+            showToast(`图片生成完成！${results.length} 张`, 'success');
+            console.log(`${LOG_PREFIX} ✅ 自动生图完成，已插入 ${results.length} 个结果到聊天`);
+        } else {
+            console.log(`${LOG_PREFIX} ⚠️ ComfyUI 返回了空结果`);
+            showToast('ComfyUI 未返回任何图片', 'warning');
+        }
 
     } catch (e) {
-        console.error('[ComfyUI Gen] 自动生图失败:', e);
+        console.error(`${LOG_PREFIX} ❌ 自动生图失败:`, e);
+        console.error(`${LOG_PREFIX} 错误堆栈:`, e.stack);
         showToast('自动生图失败: ' + e.message, 'error');
     } finally {
         isGenerating = false;
+        console.log(`${LOG_PREFIX} ========== 事件处理结束 ==========`);
     }
 }
 
@@ -147,9 +192,12 @@ async function onMessageReceived(messageIndex) {
  */
 export function registerAutoTrigger() {
     const s = getSettings();
+    console.log(`${LOG_PREFIX} registerAutoTrigger() 调用，auto_generate_enabled=${s.auto_generate_enabled}`);
     if (s.auto_generate_enabled) {
         eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
-        console.log('[ComfyUI Gen] 自动生图: 事件监听已注册');
+        console.log(`${LOG_PREFIX} ✅ 事件监听已注册 (event: ${event_types.MESSAGE_RECEIVED})`);
+    } else {
+        console.log(`${LOG_PREFIX} ⏭️ 自动生图未启用，不注册事件监听`);
     }
 }
 
@@ -158,7 +206,7 @@ export function registerAutoTrigger() {
  */
 export function unregisterAutoTrigger() {
     eventSource.removeListener(event_types.MESSAGE_RECEIVED, onMessageReceived);
-    console.log('[ComfyUI Gen] 自动生图: 事件监听已注销');
+    console.log(`${LOG_PREFIX} 事件监听已注销`);
 }
 
 /**
@@ -166,6 +214,7 @@ export function unregisterAutoTrigger() {
  * @param {boolean} enabled
  */
 export function toggleAutoTrigger(enabled) {
+    console.log(`${LOG_PREFIX} toggleAutoTrigger(${enabled}) 调用`);
     unregisterAutoTrigger();
     if (enabled) {
         registerAutoTrigger();
