@@ -214,6 +214,10 @@ export async function sendToComfyUI(params) {
         throw new Error('工作流 JSON 解析失败：' + e.message);
     }
 
+    if (workflow.nodes && Array.isArray(workflow.nodes)) {
+        throw new Error('当前为原生带坐标的工作流（Save 格式），ComfyUI 接口无法直接执行。请在 ComfyUI 设置中勾选 "Enable Dev mode Options"，然后点击界面上的 "Save (API Format)" 重新导出代码！');
+    }
+
     const clientId = generateClientId();
 
     console.log('[ComfyUI Gen] 发送生图请求:', {
