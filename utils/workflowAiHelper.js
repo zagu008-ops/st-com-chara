@@ -203,12 +203,13 @@ async function executeAiCommands(jsonText, workflowStr) {
             // == Real Tools ==
             else if (action.type === 'fetch_models') {
                 try {
-                    const url = getSettings().comfyui_url.replace(/\\/$ /, '') + '/object_info';
+                    const url = getSettings().comfyui_url.replace(/\/$/, '') + '/object_info';
                     const res = await fetch(url);
                     const data = await res.json();
-                    const checkpoints = data.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] || [];
-                    const loras = data.LoraLoader?.input?.required?.lora_name?.[0] || [];
-                    toolResults.push(`[ComfyUI Models]\nCheckpoints: ${checkpoints.slice(0, 20).join(', ')}\nLoras: ${loras.slice(0, 20).join(', ')}`);
+                    const ckptInput = (data.CheckpointLoaderSimple && data.CheckpointLoaderSimple.input && data.CheckpointLoaderSimple.input.required && data.CheckpointLoaderSimple.input.required.ckpt_name) ? data.CheckpointLoaderSimple.input.required.ckpt_name[0] : [];
+                    const loraInput = (data.LoraLoader && data.LoraLoader.input && data.LoraLoader.input.required && data.LoraLoader.input.required.lora_name) ? data.LoraLoader.input.required.lora_name[0] : [];
+
+                    toolResults.push(`[ComfyUI Models]\nCheckpoints: ${ckptInput.slice(0, 20).join(', ')}\nLoras: ${loraInput.slice(0, 20).join(', ')}`);
                 } catch (e) {
                     toolResults.push(`[ComfyUI Action Failed] fetch_models error: ${e.message}`);
                 }
@@ -216,10 +217,20 @@ async function executeAiCommands(jsonText, workflowStr) {
 
             else if (action.type === 'check_comfy_status') {
                 try {
-                    const url = getSettings().comfyui_url.replace(/\\/$ /, '') + '/system_stats';
+                    const url = getSettings().comfyui_url.replace(/\/$/, '') + '/system_stats';
                     const res = await fetch(url);
                     const data = await res.json();
-                    toolResults.push(`[ComfyUI System Stats]\nOS: ${data.system?.os}\nGPU: ${data.system?.devices?.[0]?.name}\nVRAM total: ${data.system?.devices?.[0]?.vram_total}`);
+
+                    let os = data.system && data.system.os ? data.system.os : 'Unknown';
+                    let gpuName = 'Unknown';
+                    let vram = 'Unknown';
+
+                    if (data.system && data.system.devices && data.system.devices.length > 0) {
+                        gpuName = data.system.devices[0].name || 'Unknown';
+                        vram = data.system.devices[0].vram_total || 'Unknown';
+                    }
+
+                    toolResults.push(`[ComfyUI System Stats]\nOS: ${os}\nGPU: ${gpuName}\nVRAM total: ${vram}`);
                 } catch (e) {
                     toolResults.push(`[ComfyUI Action Failed] check_comfy_status error: ${e.message} (ComfyUI may be offline)`);
                 }
