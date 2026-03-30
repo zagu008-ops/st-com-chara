@@ -130,12 +130,26 @@ function appendMessage(sender, text, rawHtml = '') {
     const content = $('<div class="msg-content"></div>');
 
     if (text) {
-        // 渲染 Markdown / 转义
-        let formattedText = text
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/\\n/g, '<br>')
-            .replace(/\`\`\`json([\\s\\S]*?)\`\`\`/g, '<pre><code>$1</code></pre>');
-        content.append(formattedText);
+        // 先剥离可能残留的 <SystemQuery>（以防万一）
+        let cleanText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        // 简单 Markdown 渲染
+        cleanText = cleanText
+            // 标题
+            .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
+            .replace(/^## (.*?)$/gm, '<h2>$1</h2>')
+            .replace(/^# (.*?)$/gm, '<h1>$1</h1>')
+            // 粗体和斜体
+            .replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*([^\*]+)\*/g, '<em>$1</em>')
+            // 行内代码
+            .replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.1); padding: 2px 4px; border-radius: 3px;">$1</code>')
+            // 换行
+            .replace(/\n/g, '<br>')
+            // 代码块
+            .replace(/```json([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+
+        content.append(cleanText);
     }
 
     if (rawHtml) {
@@ -376,8 +390,8 @@ async function sendChatMessage(userMessage, isRecursive = false) {
 
         // 提取 <SystemQuery> 或者 ```json 动作块
         let jsonText = null;
+        let systemQueryMatch = aiResponse.match(/&lt;SystemQuery&gt;([\s\S]*?)(?:&lt;\/SystemQuery&gt;|$)/i) || aiResponse.match(/<SystemQuery>([\s\S]*?)(?:<\/SystemQuery>|$)/i);
 
-        let systemQueryMatch = aiResponse.match(/<SystemQuery>([\s\S]*?)<\/SystemQuery>/);
         if (systemQueryMatch) {
             jsonText = systemQueryMatch[1];
         } else {
@@ -389,7 +403,11 @@ async function sendChatMessage(userMessage, isRecursive = false) {
             }
         }
 
-        const rawTextToDisplay = aiResponse.replace(/<SystemQuery>[\s\S]*?<\/SystemQuery>/, '').replace(/```(?:json)?\s*[\s\S]*?\s*```/i, '').trim();
+        // 移除展示文本中的系统块，处理多重 <SystemQuery> 等
+        let rawTextToDisplay = aiResponse
+            .replace(/<SystemQuery>[\s\S]*?(?:<\/SystemQuery>|$)/gi, '')
+            .replace(/```(?:json)?\s*[\s\S]*?\s*```/gi, '')
+            .trim();
 
         let uiHtml = '';
         let triggerRecursion = false;
