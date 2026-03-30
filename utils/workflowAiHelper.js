@@ -8,6 +8,7 @@ import { extension_settings } from '../../../../extensions.js';
 import { saveSettingsDebounced } from '../../../../../script.js';
 import { extensionName } from './config.js';
 import { callLLM } from './promptGen.js';
+import { sysLog } from './comfyui.js';
 
 const LOG_PREFIX = '[ComfyUI Gen][AI Helper]';
 
@@ -109,6 +110,7 @@ ${JSON.stringify(importantNodes, null, 2)}
 4. {"type": "show_options", "options": ["检查模型文件名", "查看堆栈", "尝试重连"]} - 在聊天框渲染供用户点击的快捷回复按钮。
 5. {"type": "update_settings", "settings": {"comfyui_url": "..."}} - 修改本插件的系统设置。
 6. {"type": "fix_workflow", "replacements": [{"node_id": "3", "target": "seed", "value": "%seed%"}]} - 修复工作流占位符 (%prompt%, %width%, %height%, %seed%, %steps%)，Save 格式需设置 target 为 "widget_text"。
+7. {"type": "trigger_test_gen"} - 立即触发一次生图测试（当用户要求你生成图片时调用此工具）。
 
 【交互规范】
 - 当遇到缺少提示词、节点、模型报错等，务必使用工具帮用户排错！
@@ -218,13 +220,16 @@ async function executeAiCommands(jsonText, workflowStr) {
             else if (action.type === 'fetch_models') {
                 try {
                     const url = getSettings().comfyui_url.replace(/\/$/, '') + '/object_info';
+                    sysLog(`[Agent] Fetching node stats: GET ${url}`);
                     const res = await fetch(url);
                     const data = await res.json();
                     const ckptInput = (data.CheckpointLoaderSimple && data.CheckpointLoaderSimple.input && data.CheckpointLoaderSimple.input.required && data.CheckpointLoaderSimple.input.required.ckpt_name) ? data.CheckpointLoaderSimple.input.required.ckpt_name[0] : [];
                     const loraInput = (data.LoraLoader && data.LoraLoader.input && data.LoraLoader.input.required && data.LoraLoader.input.required.lora_name) ? data.LoraLoader.input.required.lora_name[0] : [];
 
+                    sysLog(`[Agent] Successfully retrieved ${ckptInput.length} checkpionts, ${loraInput.length} loras.`);
                     toolResults.push(`[ComfyUI Models]\nCheckpoints: ${ckptInput.slice(0, 20).join(', ')}\nLoras: ${loraInput.slice(0, 20).join(', ')}`);
                 } catch (e) {
+                    sysLog(`[Agent] Error fetching models: ${e.message}`);
                     toolResults.push(`[ComfyUI Action Failed] fetch_models error: ${e.message}`);
                 }
             }
@@ -232,6 +237,7 @@ async function executeAiCommands(jsonText, workflowStr) {
             else if (action.type === 'check_comfy_status') {
                 try {
                     const url = getSettings().comfyui_url.replace(/\/$/, '') + '/system_stats';
+                    sysLog(`[Agent] Checking status: GET ${url}`);
                     const res = await fetch(url);
                     const data = await res.json();
 
@@ -244,13 +250,24 @@ async function executeAiCommands(jsonText, workflowStr) {
                         vram = data.system.devices[0].vram_total || 'Unknown';
                     }
 
+                    sysLog(`[Agent] Status OK. GPU: ${gpuName}, OS: ${os}`);
                     toolResults.push(`[ComfyUI System Stats]\nOS: ${os}\nGPU: ${gpuName}\nVRAM total: ${vram}`);
                 } catch (e) {
+                    sysLog(`[Agent] Offline / Error: ${e.message}`);
                     toolResults.push(`[ComfyUI Action Failed] check_comfy_status error: ${e.message} (ComfyUI may be offline)`);
                 }
             }
 
             // == Internal Configuration Modifiers ==
+            else if (action.type === 'trigger_test_gen') {
+                $('#comfyui-gen-test').click();
+                uiHtml += `
+                    <div class="cg-ai-tool-call" style="margin-top: 10px;">
+                        <div style="color: #27ae60; font-size: 0.85em; margin-bottom: 5px;">🎨 智绘姬已触发测试生图任务...</div>
+                    </div>
+                `;
+            }
+
             else if (action.type === 'update_settings' && action.settings) {
                 const s = getSettings();
                 let settingsChanged = false;
@@ -382,7 +399,7 @@ async function sendChatMessage(userMessage, isRecursive = false) {
             fullUserPrompt += `[${chatHistory[i].role.toUpperCase()}]\n${chatHistory[i].content}\n\n`;
         }
 
-        const aiResponse = await callLLM(systemPrompt, fullUserPrompt, 800, 0.7);
+        const aiResponse = await callLLM(systemPrompt, fullUserPrompt, 4000, 0.7);
 
         if (!aiResponse) throw new Error('LLM 返回为空');
 

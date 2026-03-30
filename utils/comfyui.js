@@ -21,6 +21,19 @@ function generateClientId() {
 }
 
 /**
+ * 写入悬浮日志面板
+ */
+export function sysLog(msg) {
+    const time = new Date().toLocaleTimeString();
+    const line = `<div>[${time}] ${msg}</div>`;
+    const box = $('#cg-ai-sys-logs');
+    if (box.length) {
+        box.append(line);
+        box.scrollTop(box[0].scrollHeight);
+    }
+}
+
+/**
  * 构建生图参数对象
  * 合并固定提示词 + 服装提示词 + 角色提示词 + 动态提示词
  */
@@ -225,6 +238,7 @@ export async function sendToComfyUI(params) {
         mode: settings.client_mode,
         prompt: params.prompt?.substring(0, 100) + '...',
     });
+    sysLog(`正在提交生图任务到 ${url} (模式: ${settings.client_mode})`);
 
     let response;
 
@@ -260,6 +274,7 @@ export async function sendToComfyUI(params) {
     }
 
     console.log('[ComfyUI Gen] 任务已提交, prompt_id:', promptId);
+    sysLog(`任务提交成功, Queue ID: ${promptId}`);
 
     // 轮询结果
     const result = await pollResult(url, promptId);
@@ -285,6 +300,7 @@ async function pollResult(url, promptId, maxRetries = 600) {
             // 检查是否完成
             if (history.status?.completed || history.outputs) {
                 console.log('[ComfyUI Gen] 生成完成, 获取结果...');
+                sysLog(`✓ 生成完成，正在获取图片...`);
                 return await extractOutputs(url, history);
             }
 
