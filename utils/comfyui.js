@@ -21,7 +21,7 @@ function generateClientId() {
 }
 
 /**
- * 写入悬浮日志面板
+ * 写入悬浮日志面板 (也同步到主日志面板)
  */
 export function sysLog(msg) {
     const time = new Date().toLocaleTimeString();
@@ -30,6 +30,13 @@ export function sysLog(msg) {
     if (box.length) {
         box.append(line);
         box.scrollTop(box[0].scrollHeight);
+    }
+    // 同步到主日志面板 textarea
+    const el = document.getElementById('cg-log-output');
+    if (el) {
+        const ts = `[${new Date().toLocaleString()}]`;
+        el.value += `${ts} ${msg}\n`;
+        el.scrollTop = el.scrollHeight;
     }
 }
 

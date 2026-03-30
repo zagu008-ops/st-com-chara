@@ -16,6 +16,8 @@ import { insertResultsToChat } from './utils/imageInserter.js';
 import { initFab } from './utils/fab.js';
 import { registerAutoTrigger, toggleAutoTrigger } from './utils/autoTrigger.js';
 import { initAiHelperEvents } from './utils/workflowAiHelper.js?v=2';
+import { addImageToCache, initImageCacheEvents } from './utils/imageCache.js';
+import { addLog, addTask, updateTask, initLogEvents } from './utils/logger.js';
 
 // ============ 初始化 ============
 
@@ -1117,6 +1119,9 @@ function bindWorkflowPresetEvents() {
 
     // --- AI 助手对话框事件初始化 ---
     initAiHelperEvents();
+    initImageCacheEvents();
+    initLogEvents();
+    addLog('插件初始化完成');
 
     // --- 测试当前工作流 ---
     $('#comfyui-gen-test-workflow').on('click', async function () {
@@ -1136,20 +1141,35 @@ function bindWorkflowPresetEvents() {
 
         toastr.info('发送生图测试请求中...', 'ComfyUI 测试');
         btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 正在生成...').prop('disabled', true);
+        addLog('发出图像生成请求 (ID: comfyui-gen-test)');
+        const taskId = addTask('ComfyUI 测试生图');
 
         try {
             // 在调用前强制把最新的 JSON 同步到 settings 中
             s.workflow_json = $('#comfyui-gen-workflow').val();
+            addLog('开始 ComfyUI 生图流程, 客户端模式: ' + (s.client_mode || 'browser'));
 
             const results = await sendToComfyUI(testParams);
             if (results && results.length > 0) {
                 toastr.success(`测试生图成功，生成了 ${results.length} 张图片！去聊天窗口或后台查看。`, 'ComfyUI 测试');
+                addLog(`生图完成, 共 ${results.length} 张图片`);
                 insertResultsToChat(results, '测试生图结果: ' + testParams.prompt);
+                // 加入缓存
+                for (const r of results) {
+                    if (r.type === 'image' && r.data) {
+                        addImageToCache(r.data, r.filename);
+                    }
+                }
+                updateTask(taskId, 'done');
             } else {
                 toastr.warning('ComfyUI 未返回图片数据', 'ComfyUI 测试');
+                addLog('警告: ComfyUI 未返回图片数据');
+                updateTask(taskId, 'done');
             }
         } catch (e) {
             toastr.error('测试生图失败: ' + e.message, 'ComfyUI 测试');
+            addLog('错误: ' + e.message);
+            updateTask(taskId, 'cancelled');
         } finally {
             btn.html('<i class="fa-solid fa-play"></i> 测试生图').prop('disabled', false);
         }
