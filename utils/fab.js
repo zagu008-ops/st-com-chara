@@ -20,11 +20,35 @@ let isMenuOpen = false;
  */
 export function initFab() {
     const settings = extension_settings[extensionName];
-    if (!settings.fab_enabled) return;
+    console.log('[ComfyUI Gen][FAB] fab_enabled =', settings.fab_enabled);
+    if (!settings.fab_enabled) {
+        console.log('[ComfyUI Gen][FAB] ⏭️ 悬浮球未启用，跳过');
+        return;
+    }
 
     createFabElement();
     createMenuElement();
     console.log('[ComfyUI Gen] 悬浮球已初始化');
+
+    // 2 秒后诊断 FAB 是否可见
+    setTimeout(() => {
+        if (!fabElement) {
+            console.error('[ComfyUI Gen][FAB] ❌ fabElement 为 null');
+            return;
+        }
+        const rect = fabElement.getBoundingClientRect();
+        const styles = window.getComputedStyle(fabElement);
+        console.log('[ComfyUI Gen][FAB] 🔍 诊断信息:',
+            '\n  位置:', JSON.stringify({ right: fabElement.style.right, bottom: fabElement.style.bottom }),
+            '\n  视口内矩形:', JSON.stringify({ top: rect.top, left: rect.left, width: rect.width, height: rect.height }),
+            '\n  display:', styles.display,
+            '\n  visibility:', styles.visibility,
+            '\n  opacity:', styles.opacity,
+            '\n  z-index:', styles.zIndex,
+            '\n  窗口大小:', window.innerWidth, 'x', window.innerHeight,
+            '\n  在视口内:', rect.left >= 0 && rect.top >= 0 && rect.right <= window.innerWidth && rect.bottom <= window.innerHeight
+        );
+    }, 2000);
 }
 
 /**
@@ -43,8 +67,17 @@ function createFabElement() {
     // 移动端：确保悬浮球在底部工具栏上方
     const isMobile = window.innerWidth <= 600;
     const minBottom = isMobile ? 90 : 0;
-    fabElement.style.right = Math.min(pos.right, window.innerWidth - 60) + 'px';
-    fabElement.style.bottom = Math.max(pos.bottom, minBottom) + 'px';
+    const clampedRight = Math.min(pos.right, window.innerWidth - 60);
+    const clampedBottom = Math.max(pos.bottom, minBottom);
+    fabElement.style.right = clampedRight + 'px';
+    fabElement.style.bottom = clampedBottom + 'px';
+
+    console.log('[ComfyUI Gen][FAB] 位置计算:',
+        '\n  保存位置:', JSON.stringify(pos),
+        '\n  窗口:', window.innerWidth, 'x', window.innerHeight,
+        '\n  isMobile:', isMobile,
+        '\n  最终 right:', clampedRight, 'bottom:', clampedBottom
+    );
 
     // 拖拽逻辑
     let startX, startY, startRight, startBottom;
