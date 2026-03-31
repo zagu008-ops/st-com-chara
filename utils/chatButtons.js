@@ -1,6 +1,9 @@
 /**
  * ComfyUI Gen - 选中文本生图按钮模块
  * 监听聊天区选中事件，浮现 🎨 按钮，点击后基于选中文本生成图片
+ *
+ * 注意：使用 left/top 定位 + display 控制可见性
+ * 原因：SillyTavern body 存在 CSS transform，position:fixed + bottom 失效
  */
 
 import { buildPayload, sendToComfyUI } from './comfyui.js';
@@ -60,12 +63,8 @@ function createFloatingButton() {
  * 绑定选区事件
  */
 function bindSelectionEvents() {
-    // 监听全局 mouseup（选中完成）
     document.addEventListener('mouseup', onMouseUp);
-
-    // 点击空白处隐藏
     document.addEventListener('mousedown', onMouseDown);
-
     console.log(`${LOG_PREFIX} 选区事件已绑定`);
 }
 
@@ -83,6 +82,7 @@ function onMouseUp(e) {
         try {
             const selection = window.getSelection();
             if (!selection || selection.rangeCount === 0) {
+                console.log(`${LOG_PREFIX} 无选区或 rangeCount=0`);
                 hideFloatingButton();
                 return;
             }
@@ -91,32 +91,40 @@ function onMouseUp(e) {
 
             // 最少 5 个字符才触发
             if (!text || text.length < 5) {
+                if (text) console.log(`${LOG_PREFIX} 选中文本太短 (${text.length} < 5)`);
                 hideFloatingButton();
                 return;
             }
 
             // 检查选区是否在 #chat 区域内
             const anchor = selection.anchorNode;
-            const focus = selection.focusNode;
             const chatEl = document.getElementById('chat');
 
             if (!chatEl) {
-                console.log(`${LOG_PREFIX} #chat 容器不存在（可能未打开聊天）`);
+                console.log(`${LOG_PREFIX} ⚠️ #chat 容器不存在（可能未打开聊天）`);
                 hideFloatingButton();
                 return;
             }
 
             if (!anchor || !chatEl.contains(anchor)) {
+                console.log(`${LOG_PREFIX} 选区不在 #chat 内，忽略`);
                 hideFloatingButton();
                 return;
             }
 
             selectedText = text;
-            console.log(`${LOG_PREFIX} 检测到选中文本，长度=${text.length}: "${text.substring(0, 50)}..."`);
+            console.log(`${LOG_PREFIX} ✅ 检测到选中文本，长度=${text.length}: "${text.substring(0, 50)}..."`);
 
-            // 计算弹出位置：选区末尾的下方（使用视口坐标）
+            // 计算弹出位置：选区末尾的下方
             const range = selection.getRangeAt(0);
             const rect = range.getBoundingClientRect();
+            console.log(`${LOG_PREFIX} 选区矩形:`, JSON.stringify({
+                top: Math.round(rect.top),
+                left: Math.round(rect.left),
+                bottom: Math.round(rect.bottom),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height)
+            }));
             showFloatingButton(rect);
         } catch (err) {
             console.error(`${LOG_PREFIX} 选区检测异常:`, err);
@@ -132,7 +140,6 @@ function onMouseDown(e) {
     if (floatingBtn.contains(e.target)) return;
     if (floatingBtn.style.display === 'none') return;
 
-    // 延迟隐藏，允许按钮的 click 先触发
     setTimeout(() => {
         const sel = window.getSelection();
         if (!sel || !sel.toString().trim()) {
@@ -142,12 +149,11 @@ function onMouseDown(e) {
 }
 
 /**
- * 显示浮动按钮（使用 fixed 定位，基于视口坐标）
+ * 显示浮动按钮（使用 left/top 定位）
  */
 function showFloatingButton(rect) {
     if (!floatingBtn) return;
 
-    // 按钮大约宽 80px，定位在选区正下方居中
     const btnWidth = 80;
     const btnHeight = 32;
 
@@ -156,18 +162,40 @@ function showFloatingButton(rect) {
 
     // 防止超出屏幕
     left = Math.max(8, Math.min(left, window.innerWidth - btnWidth - 8));
-    // 如果底部放不下，放到选区上方
     if (top + btnHeight > window.innerHeight - 8) {
         top = rect.top - btnHeight - 8;
     }
 
+    // 使用 left/top 并清除 right/bottom（绕开 SillyTavern transform 问题）
     floatingBtn.style.position = 'fixed';
     floatingBtn.style.left = `${left}px`;
     floatingBtn.style.top = `${top}px`;
+    floatingBtn.style.right = 'auto';
+    floatingBtn.style.bottom = 'auto';
+
+    // 直接设置可见性（不依赖 CSS transition 的 opacity）
     floatingBtn.style.display = 'flex';
+    floatingBtn.style.opacity = '1';
+    floatingBtn.style.transform = 'translateY(0)';
     floatingBtn.classList.add('cg-sel-gen-show');
 
-    console.log(`${LOG_PREFIX} 浮动按钮已显示 at (${Math.round(left)}, ${Math.round(top)})`);
+    console.log(`${LOG_PREFIX} 🎨 浮动按钮已显示 at (${Math.round(left)}, ${Math.round(top)})`);
+
+    // 即时诊断按钮实际位置
+    requestAnimationFrame(() => {
+        const btnRect = floatingBtn.getBoundingClientRect();
+        const inViewport = btnRect.left >= 0 && btnRect.top >= 0 &&
+            btnRect.right <= window.innerWidth && btnRect.bottom <= window.innerHeight;
+        console.log(`${LOG_PREFIX} 按钮实际位置:`,
+            JSON.stringify({ top: Math.round(btnRect.top), left: Math.round(btnRect.left) }),
+            '在视口内:', inViewport);
+        if (!inViewport) {
+            console.warn(`${LOG_PREFIX} ⚠️ 按钮不在视口内！尝试强制修正...`);
+            // 强制修正到可见位置
+            floatingBtn.style.left = `${Math.max(8, Math.min(left, window.innerWidth - btnWidth - 8))}px`;
+            floatingBtn.style.top = `${Math.max(8, Math.min(top, window.innerHeight - btnHeight - 8))}px`;
+        }
+    });
 }
 
 /**
@@ -177,6 +205,7 @@ function hideFloatingButton() {
     if (!floatingBtn) return;
     if (floatingBtn.style.display === 'none') return;
     floatingBtn.style.display = 'none';
+    floatingBtn.style.opacity = '0';
     floatingBtn.classList.remove('cg-sel-gen-show');
     selectedText = '';
 }
@@ -221,7 +250,6 @@ async function onGenerateClick(e) {
         // 3. 插入结果
         if (results && results.length > 0) {
             insertResultsToChat(results, `选中文本生图: ${text.substring(0, 30)}...`);
-            // 加入缓存
             for (const r of results) {
                 if (r.type === 'image' && r.data) {
                     try { addImageToCache(r.data, r.filename); } catch (_) { }

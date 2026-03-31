@@ -1316,11 +1316,9 @@
     font-weight: 500;
     cursor: pointer;
     box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
     user-select: none;
     white-space: nowrap;
-    opacity: 0;
-    transform: translateY(-4px);
     pointer-events: auto;
 }
 
