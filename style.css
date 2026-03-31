@@ -1301,7 +1301,7 @@
 /* ============ 选中文本生图浮动按钮 ============ */
 
 .cg-sel-gen-btn {
-    position: absolute;
+    position: fixed;
     z-index: 10002;
     display: none;
     align-items: center;
