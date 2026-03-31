@@ -1,6 +1,9 @@
 /**
  * ComfyUI Gen - 悬浮球（FAB）模块
  * 可拖拽浮动按钮，展开菜单提供快捷操作
+ *
+ * 注意：使用 left/top 定位而非 right/bottom
+ * 原因：SillyTavern 的 body 存在 CSS transform，导致 position:fixed + bottom 定位异常
  */
 
 import { extension_settings } from '../../../../extensions.js';
@@ -32,27 +35,24 @@ export function initFab() {
 
     // 2 秒后诊断 FAB 是否可见
     setTimeout(() => {
-        if (!fabElement) {
-            console.error('[ComfyUI Gen][FAB] ❌ fabElement 为 null');
-            return;
-        }
+        if (!fabElement) return;
         const rect = fabElement.getBoundingClientRect();
         const styles = window.getComputedStyle(fabElement);
         console.log('[ComfyUI Gen][FAB] 🔍 诊断信息:',
-            '\n  位置:', JSON.stringify({ right: fabElement.style.right, bottom: fabElement.style.bottom }),
-            '\n  视口内矩形:', JSON.stringify({ top: rect.top, left: rect.left, width: rect.width, height: rect.height }),
+            '\n  CSS:', JSON.stringify({ left: fabElement.style.left, top: fabElement.style.top }),
+            '\n  视口矩形:', JSON.stringify({ top: rect.top, left: rect.left, width: rect.width, height: rect.height }),
             '\n  display:', styles.display,
             '\n  visibility:', styles.visibility,
             '\n  opacity:', styles.opacity,
             '\n  z-index:', styles.zIndex,
-            '\n  窗口大小:', window.innerWidth, 'x', window.innerHeight,
+            '\n  窗口:', window.innerWidth, 'x', window.innerHeight,
             '\n  在视口内:', rect.left >= 0 && rect.top >= 0 && rect.right <= window.innerWidth && rect.bottom <= window.innerHeight
         );
     }, 2000);
 }
 
 /**
- * 创建悬浮球 DOM
+ * 创建悬浮球 DOM（使用 left/top 定位）
  */
 function createFabElement() {
     if (fabElement) fabElement.remove();
@@ -62,25 +62,41 @@ function createFabElement() {
     fabElement.innerHTML = '<i class="fa-solid fa-paintbrush"></i>';
 
     const settings = extension_settings[extensionName];
-    const pos = settings.fab_position || { right: 20, bottom: 80 };
-
-    // 移动端：确保悬浮球在底部工具栏上方
     const isMobile = window.innerWidth <= 600;
-    const minBottom = isMobile ? 90 : 0;
-    const clampedRight = Math.min(pos.right, window.innerWidth - 60);
-    const clampedBottom = Math.max(pos.bottom, minBottom);
-    fabElement.style.right = clampedRight + 'px';
-    fabElement.style.bottom = clampedBottom + 'px';
+    const fabSize = isMobile ? 44 : 52;
+
+    // 读取位置（兼容旧版 right/bottom → 自动转换为 left/top）
+    const pos = settings.fab_position || {};
+    let left, top;
+
+    if (pos.left !== undefined && pos.top !== undefined) {
+        left = pos.left;
+        top = pos.top;
+    } else {
+        // 旧格式 right/bottom → 转为 left/top
+        const r = pos.right ?? 20;
+        const b = pos.bottom ?? 80;
+        left = window.innerWidth - r - fabSize;
+        top = window.innerHeight - b - fabSize;
+    }
+
+    // 约束到视口
+    left = Math.max(0, Math.min(left, window.innerWidth - fabSize));
+    top = Math.max(0, Math.min(top, window.innerHeight - fabSize));
+
+    fabElement.style.left = left + 'px';
+    fabElement.style.top = top + 'px';
+    fabElement.style.right = 'auto';
+    fabElement.style.bottom = 'auto';
 
     console.log('[ComfyUI Gen][FAB] 位置计算:',
         '\n  保存位置:', JSON.stringify(pos),
         '\n  窗口:', window.innerWidth, 'x', window.innerHeight,
-        '\n  isMobile:', isMobile,
-        '\n  最终 right:', clampedRight, 'bottom:', clampedBottom
+        '\n  最终 left:', left, 'top:', top
     );
 
-    // 拖拽逻辑
-    let startX, startY, startRight, startBottom;
+    // ===== 拖拽逻辑（基于 left/top）=====
+    let startX, startY, startLeft, startTop;
 
     fabElement.addEventListener('mousedown', onDragStart);
     fabElement.addEventListener('touchstart', onDragStart, { passive: false });
@@ -90,8 +106,8 @@ function createFabElement() {
         const touch = e.touches ? e.touches[0] : e;
         startX = touch.clientX;
         startY = touch.clientY;
-        startRight = parseInt(fabElement.style.right);
-        startBottom = parseInt(fabElement.style.bottom);
+        startLeft = parseInt(fabElement.style.left);
+        startTop = parseInt(fabElement.style.top);
 
         document.addEventListener('mousemove', onDragMove);
         document.addEventListener('mouseup', onDragEnd);
@@ -102,20 +118,19 @@ function createFabElement() {
     function onDragMove(e) {
         e.preventDefault();
         const touch = e.touches ? e.touches[0] : e;
-        const dx = startX - touch.clientX;
-        const dy = startY - touch.clientY;
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
 
         if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
             isDragging = true;
         }
 
-        const newRight = Math.max(0, Math.min(window.innerWidth - 60, startRight + dx));
-        const newBottom = Math.max(0, Math.min(window.innerHeight - 60, startBottom + dy));
+        const newLeft = Math.max(0, Math.min(window.innerWidth - fabSize, startLeft + dx));
+        const newTop = Math.max(0, Math.min(window.innerHeight - fabSize, startTop + dy));
 
-        fabElement.style.right = newRight + 'px';
-        fabElement.style.bottom = newBottom + 'px';
+        fabElement.style.left = newLeft + 'px';
+        fabElement.style.top = newTop + 'px';
 
-        // 同步菜单位置
         if (menuElement && isMenuOpen) {
             positionMenu();
         }
@@ -130,11 +145,11 @@ function createFabElement() {
         if (!isDragging) {
             toggleMenu();
         } else {
-            // 保存位置
+            // 保存位置（新格式 left/top）
             const settings = extension_settings[extensionName];
             settings.fab_position = {
-                right: parseInt(fabElement.style.right),
-                bottom: parseInt(fabElement.style.bottom),
+                left: parseInt(fabElement.style.left),
+                top: parseInt(fabElement.style.top),
             };
             saveSettingsDebounced();
         }
@@ -143,42 +158,31 @@ function createFabElement() {
     document.body.appendChild(fabElement);
 
     // ===== FAB 位置守护器 =====
-    // 确保 FAB 始终在可见范围内（多策略触发）
     function clampFabPosition(source) {
         if (!fabElement) return;
-        const maxRight = window.innerWidth - 60;
-        const maxBottom = window.innerHeight - 60;
-        const isMobile = window.innerWidth <= 600;
-        const minBottom = isMobile ? 90 : 0;
+        const size = window.innerWidth <= 600 ? 44 : 52;
+        const curLeft = parseInt(fabElement.style.left) || 0;
+        const curTop = parseInt(fabElement.style.top) || 0;
 
-        let curRight = parseInt(fabElement.style.right) || 20;
-        let curBottom = parseInt(fabElement.style.bottom) || 80;
+        const newLeft = Math.max(0, Math.min(curLeft, window.innerWidth - size));
+        const newTop = Math.max(0, Math.min(curTop, window.innerHeight - size));
 
-        const newRight = Math.max(0, Math.min(curRight, maxRight));
-        const newBottom = Math.max(minBottom, Math.min(curBottom, maxBottom));
-
-        if (newRight !== curRight || newBottom !== curBottom) {
+        if (newLeft !== curLeft || newTop !== curTop) {
             console.log(`[ComfyUI Gen][FAB] ⚡ 位置修正 (${source}):`,
-                `right ${curRight}→${newRight}, bottom ${curBottom}→${newBottom},`,
+                `left ${curLeft}→${newLeft}, top ${curTop}→${newTop},`,
                 `窗口 ${window.innerWidth}x${window.innerHeight}`);
-            fabElement.style.right = newRight + 'px';
-            fabElement.style.bottom = newBottom + 'px';
+            fabElement.style.left = newLeft + 'px';
+            fabElement.style.top = newTop + 'px';
         }
 
-        // 同步菜单位置
-        if (menuElement && isMenuOpen) {
-            positionMenu();
-        }
+        if (menuElement && isMenuOpen) positionMenu();
     }
 
-    // 策略 1：window.resize
     let resizeTimer;
     window.addEventListener('resize', () => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => clampFabPosition('resize'), 100);
     });
-
-    // 策略 2：ResizeObserver（更可靠地检测 DevTools 打开等场景）
     try {
         const ro = new ResizeObserver(() => {
             clearTimeout(resizeTimer);
@@ -186,8 +190,6 @@ function createFabElement() {
         });
         ro.observe(document.documentElement);
     } catch (_) { }
-
-    // 策略 3：周期性检查（兜底，每 3 秒一次）
     setInterval(() => clampFabPosition('interval'), 3000);
 }
 
@@ -203,7 +205,6 @@ function createMenuElement() {
 
     document.body.appendChild(menuElement);
 
-    // 点击外部关闭菜单
     document.addEventListener('click', (e) => {
         if (isMenuOpen && !menuElement.contains(e.target) && !fabElement.contains(e.target)) {
             closeMenu();
@@ -232,7 +233,6 @@ function openMenu() {
     menuElement.style.display = 'block';
     fabElement.classList.add('active');
 
-    // 动画
     requestAnimationFrame(() => {
         menuElement.classList.add('open');
     });
@@ -251,13 +251,22 @@ function closeMenu() {
 }
 
 /**
- * 定位菜单位置（在悬浮球上方）
+ * 定位菜单位置（在悬浮球上方，使用 left/top）
  */
 function positionMenu() {
     if (!fabElement || !menuElement) return;
     const fabRect = fabElement.getBoundingClientRect();
-    menuElement.style.right = (window.innerWidth - fabRect.right) + 'px';
-    menuElement.style.bottom = (window.innerHeight - fabRect.top + 10) + 'px';
+    // 菜单放在 FAB 上方，右对齐
+    const menuWidth = 260;
+    let menuLeft = fabRect.left + fabRect.width - menuWidth;
+    let menuBottom = window.innerHeight - fabRect.top + 10;
+
+    // 防止超出左边
+    menuLeft = Math.max(8, menuLeft);
+
+    menuElement.style.left = menuLeft + 'px';
+    menuElement.style.bottom = menuBottom + 'px';
+    menuElement.style.right = 'auto';
 }
 
 /**
@@ -309,7 +318,6 @@ function renderMenu() {
         </div>
     `;
 
-    // 绑定事件
     bindMenuEvents();
 }
 
@@ -340,13 +348,11 @@ function renderPresetList(type) {
  * 绑定菜单事件
  */
 function bindMenuEvents() {
-    // 生成按钮
     const generateBtn = document.getElementById('comfyui-gen-btn-generate');
     if (generateBtn) {
         generateBtn.addEventListener('click', handleGenerate);
     }
 
-    // 设置按钮
     const settingsBtn = document.getElementById('comfyui-gen-btn-settings');
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
@@ -355,13 +361,12 @@ function bindMenuEvents() {
         });
     }
 
-    // 预设选择
     menuElement.querySelectorAll('.comfyui-gen-preset-item').forEach(item => {
         item.addEventListener('click', () => {
             const type = item.dataset.type;
             const id = item.dataset.id;
             setActivePreset(type, id);
-            renderMenu(); // 重新渲染以更新激活状态
+            renderMenu();
         });
     });
 }
