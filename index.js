@@ -887,40 +887,51 @@ async function updateExtension() {
     btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 更新中...').prop('disabled', true);
 
     try {
-        // 动态获取扩展文件夹名（不硬编码，防止重命名后失效）
-        const folderName = extensionFolderPath.split('/').pop();
-        console.log('[ComfyUI Gen] 尝试更新扩展 (Local)，文件夹名:', folderName);
+        // 1. 检测实际安装文件夹名（优先从 import.meta.url 推导，兼容改名情况）
+        let folderName = extensionFolderPath.split('/').pop();
+        try {
+            const url = import.meta.url || '';
+            const match = url.match(/extensions\/third-party\/([^/]+)/);
+            if (match) folderName = match[1];
+        } catch (_) { /* fallback to config name */ }
 
+        console.log('[ComfyUI Gen] 更新扩展，文件夹名:', folderName);
+
+        // 2. 构建标准请求头（兼容 SillyTavern 不同版本）
         const headers = { 'Content-Type': 'application/json' };
-        if (window.token) {
+        if (typeof window.getRequestHeaders === 'function') {
+            // ST 内置函数，自动添加 CSRF 和正确的 Content-Type
+            Object.assign(headers, window.getRequestHeaders());
+        } else if (window.token) {
             headers['X-CSRF-Token'] = window.token;
         }
 
-        let response = await fetch('/api/extensions/update', {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({ extensionName: folderName, global: false }),
-        });
+        // 3. 尝试 local → global → 旧版 API
+        let response;
+        const endpoints = [
+            { url: '/api/extensions/update', body: { extensionName: folderName, global: false } },
+            { url: '/api/extensions/update', body: { extensionName: folderName, global: true } },
+        ];
 
-        // 如果是 404 目录不存在，说明用户可能是全域(global)安装，自动重试
-        if (response.status === 404) {
-            console.log('[ComfyUI Gen] Local 目录未找到，尝试作为 Global 扩展更新');
-            response = await fetch('/api/extensions/update', {
+        for (const ep of endpoints) {
+            response = await fetch(ep.url, {
                 method: 'POST',
-                headers: headers,
-                body: JSON.stringify({ extensionName: folderName, global: true }),
+                headers,
+                body: JSON.stringify(ep.body),
             });
+            if (response.status !== 404) break;
+            console.log('[ComfyUI Gen] 尝试下一个端点:', JSON.stringify(ep.body));
         }
 
-        // ★ 核心防御：始终用 text() 读取，手动解析，防止 HTML 导致崩溃
+        // 4. 安全读取响应：始终用 text() 防止 HTML 导致 JSON.parse 崩溃
         const responseText = await response.text();
         console.log('[ComfyUI Gen] 更新响应:', response.status, responseText.substring(0, 200));
 
-        // 检测 HTML 响应（404/登录页/代理拦截）
+        // 5. 检测 HTML 响应（404 页面 / 登录页 / 反代拦截）
         if (responseText.trimStart().startsWith('<')) {
             toastr.error(
                 '更新接口返回了 HTML 页面。\n可能原因：\n' +
-                '• 扩展名 "' + folderName + '" 未被酒馆识别\n' +
+                '• 扩展文件夹名 "' + folderName + '" 未被酒馆识别\n' +
                 '• 酒馆版本不支持此 API\n\n' +
                 '请手动执行: cd 扩展目录 && git pull',
                 '更新失败'
@@ -932,18 +943,23 @@ async function updateExtension() {
             try {
                 const data = JSON.parse(responseText);
                 if (data.isUpToDate) {
-                    toastr.info('插件已是最新版本', 'ComfyUI Gen');
+                    toastr.info('插件已是最新版本 ✓', 'ComfyUI Gen');
                     return;
                 }
-            } catch (_) { /* 非JSON也算成功 */ }
-            toastr.success('更新成功，即将刷新页面...');
+            } catch (_) { /* 非 JSON 也算成功 */ }
+            toastr.success('更新成功！即将刷新页面...', 'ComfyUI Gen');
             setTimeout(() => location.reload(), 1500);
         } else {
-            toastr.error('更新失败 (HTTP ' + response.status + '): ' + responseText.substring(0, 150));
+            toastr.error(
+                '更新失败 (HTTP ' + response.status + ')\n' +
+                responseText.substring(0, 150) + '\n\n' +
+                '请手动执行: cd 扩展目录 && git pull',
+                'ComfyUI Gen'
+            );
         }
     } catch (e) {
         console.error('[ComfyUI Gen] 更新异常:', e);
-        toastr.error('更新失败: ' + e.message);
+        toastr.error('更新失败: ' + e.message + '\n\n请手动执行: cd 扩展目录 && git pull', 'ComfyUI Gen');
     } finally {
         btn.html(originalHtml).prop('disabled', false);
     }
