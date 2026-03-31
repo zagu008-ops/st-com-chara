@@ -142,32 +142,53 @@ function createFabElement() {
 
     document.body.appendChild(fabElement);
 
-    // 窗口缩放时重新约束 FAB 位置，防止缩小后 FAB 跑到屏幕外
+    // ===== FAB 位置守护器 =====
+    // 确保 FAB 始终在可见范围内（多策略触发）
+    function clampFabPosition(source) {
+        if (!fabElement) return;
+        const maxRight = window.innerWidth - 60;
+        const maxBottom = window.innerHeight - 60;
+        const isMobile = window.innerWidth <= 600;
+        const minBottom = isMobile ? 90 : 0;
+
+        let curRight = parseInt(fabElement.style.right) || 20;
+        let curBottom = parseInt(fabElement.style.bottom) || 80;
+
+        const newRight = Math.max(0, Math.min(curRight, maxRight));
+        const newBottom = Math.max(minBottom, Math.min(curBottom, maxBottom));
+
+        if (newRight !== curRight || newBottom !== curBottom) {
+            console.log(`[ComfyUI Gen][FAB] ⚡ 位置修正 (${source}):`,
+                `right ${curRight}→${newRight}, bottom ${curBottom}→${newBottom},`,
+                `窗口 ${window.innerWidth}x${window.innerHeight}`);
+            fabElement.style.right = newRight + 'px';
+            fabElement.style.bottom = newBottom + 'px';
+        }
+
+        // 同步菜单位置
+        if (menuElement && isMenuOpen) {
+            positionMenu();
+        }
+    }
+
+    // 策略 1：window.resize
     let resizeTimer;
     window.addEventListener('resize', () => {
         clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(() => {
-            if (!fabElement) return;
-            const maxRight = window.innerWidth - 60;
-            const maxBottom = window.innerHeight - 60;
-            const isMobile = window.innerWidth <= 600;
-            const minBottom = isMobile ? 90 : 0;
-
-            let curRight = parseInt(fabElement.style.right) || 20;
-            let curBottom = parseInt(fabElement.style.bottom) || 80;
-
-            curRight = Math.max(0, Math.min(curRight, maxRight));
-            curBottom = Math.max(minBottom, Math.min(curBottom, maxBottom));
-
-            fabElement.style.right = curRight + 'px';
-            fabElement.style.bottom = curBottom + 'px';
-
-            // 同步菜单位置
-            if (menuElement && isMenuOpen) {
-                positionMenu();
-            }
-        }, 100);
+        resizeTimer = setTimeout(() => clampFabPosition('resize'), 100);
     });
+
+    // 策略 2：ResizeObserver（更可靠地检测 DevTools 打开等场景）
+    try {
+        const ro = new ResizeObserver(() => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => clampFabPosition('ResizeObserver'), 100);
+        });
+        ro.observe(document.documentElement);
+    } catch (_) { }
+
+    // 策略 3：周期性检查（兜底，每 3 秒一次）
+    setInterval(() => clampFabPosition('interval'), 3000);
 }
 
 /**
