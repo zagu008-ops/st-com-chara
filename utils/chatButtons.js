@@ -1,277 +1,157 @@
 /**
- * ComfyUI Gen - 选中文本生图按钮模块
- * 监听聊天区选中事件，浮现 🎨 按钮，点击后基于选中文本生成图片
- *
- * 注意：使用 left/top 定位 + display 控制可见性
- * 原因：SillyTavern body 存在 CSS transform，position:fixed + bottom 失效
+ * ComfyUI Gen - 聊天消息生图按钮
+ * 替换原来的选词生图：为每条消息添加“生成插图”按钮，点击后为整个消息生成 3-5 张图
  */
 
 import { buildPayload, sendToComfyUI } from './comfyui.js';
-import { insertResultsToChat } from './imageInserter.js';
 import { generateImagePromptFromText } from './promptGen.js';
+import { insertResultsToChat } from './imageInserter.js';
 import { addImageToCache } from './imageCache.js';
 import { addLog } from './logger.js';
 
 const LOG_PREFIX = '[ComfyUI Gen][ChatBtn]';
-let floatingBtn = null;
-let selectedText = '';
 let isGenerating = false;
 
 /**
- * 初始化选中文本生图功能
+ * 初始化消息按钮模块
  */
 export function initChatButtons() {
-    try {
-        createFloatingButton();
-        bindSelectionEvents();
-        console.log(`${LOG_PREFIX} ✅ 选中文本生图功能已初始化`);
-    } catch (e) {
-        console.error(`${LOG_PREFIX} ❌ 初始化失败:`, e);
+    console.log(`${LOG_PREFIX} 初始化聊天消息生图按钮`);
+
+    // 注入自定义 CSS
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .comfyui-gen-mes-btn {
+            cursor: pointer;
+            color: var(--SmartThemeBodyColor);
+            opacity: 0.6;
+            transition: opacity 0.2s, color 0.2s;
+            margin-left: 8px;
+            font-size: 14px;
+        }
+        .comfyui-gen-mes-btn:hover {
+            opacity: 1;
+            color: #b785f6;
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 监听 DOM 变化以给新消息添加按钮
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === 1) {
+                    if (node.classList && node.classList.contains('mes')) {
+                        addGenerateButtonToMessage(node);
+                    } else if (node.querySelectorAll) {
+                        node.querySelectorAll('.mes').forEach(addGenerateButtonToMessage);
+                    }
+                }
+            });
+        });
+    });
+
+    const chatContainer = document.getElementById('chat');
+    if (chatContainer) {
+        observer.observe(chatContainer, { childList: true, subtree: true });
+        // 初始化已有的消息
+        chatContainer.querySelectorAll('.mes').forEach(addGenerateButtonToMessage);
+    } else {
+        console.warn(`${LOG_PREFIX} #chat 元素未找到，将在 2 秒后重试`);
+        setTimeout(initChatButtons, 2000);
     }
 }
 
 /**
- * 创建浮动按钮 DOM（仅创建一次，后续 show/hide）
+ * 向单条消息添加生成按钮
  */
-function createFloatingButton() {
-    // 防止重复创建
-    const existing = document.getElementById('cg-sel-gen-btn');
-    if (existing) {
-        floatingBtn = existing;
-        return;
-    }
+function addGenerateButtonToMessage(mesElement) {
+    if (mesElement.querySelector('.comfyui-gen-mes-btn')) return; // 已添加
 
-    floatingBtn = document.createElement('div');
-    floatingBtn.id = 'cg-sel-gen-btn';
-    floatingBtn.className = 'cg-sel-gen-btn';
-    floatingBtn.innerHTML = '<i class="fa-solid fa-palette"></i><span>生图</span>';
-    floatingBtn.style.display = 'none';
+    const nameTextContent = mesElement.querySelector('.name_text');
+    if (!nameTextContent) return;
 
-    // 点击生图
-    floatingBtn.addEventListener('click', onGenerateClick);
-    // 阻止 mousedown 导致选区丢失
-    floatingBtn.addEventListener('mousedown', (e) => {
-        e.preventDefault();
+    const btn = document.createElement('span');
+    btn.className = 'comfyui-gen-mes-btn';
+    btn.title = '为此消息生成 3-5 张插图 (ComfyUI Gen)';
+    btn.innerHTML = '<i class="fa-solid fa-images"></i>';
+
+    btn.addEventListener('click', async (e) => {
         e.stopPropagation();
-    });
-
-    document.body.appendChild(floatingBtn);
-    console.log(`${LOG_PREFIX} 浮动按钮已创建并挂载到 body`);
-}
-
-/**
- * 绑定选区事件
- */
-function bindSelectionEvents() {
-    document.addEventListener('mouseup', onMouseUp);
-    document.addEventListener('mousedown', onMouseDown);
-    console.log(`${LOG_PREFIX} 选区事件已绑定`);
-}
-
-/**
- * 鼠标抬起回调 —— 检测选区
- */
-function onMouseUp(e) {
-    // 点击按钮本身时忽略
-    if (floatingBtn && floatingBtn.contains(e.target)) return;
-    // 生成中不响应新选区
-    if (isGenerating) return;
-
-    // 延迟一帧确保 selection 已更新
-    requestAnimationFrame(() => {
-        try {
-            const selection = window.getSelection();
-            if (!selection || selection.rangeCount === 0) {
-                console.log(`${LOG_PREFIX} 无选区或 rangeCount=0`);
-                hideFloatingButton();
-                return;
-            }
-
-            const text = (selection.toString() || '').trim();
-
-            // 最少 5 个字符才触发
-            if (!text || text.length < 5) {
-                if (text) console.log(`${LOG_PREFIX} 选中文本太短 (${text.length} < 5)`);
-                hideFloatingButton();
-                return;
-            }
-
-            // 检查选区是否在 #chat 区域内
-            const anchor = selection.anchorNode;
-            const chatEl = document.getElementById('chat');
-
-            if (!chatEl) {
-                console.log(`${LOG_PREFIX} ⚠️ #chat 容器不存在（可能未打开聊天）`);
-                hideFloatingButton();
-                return;
-            }
-
-            if (!anchor || !chatEl.contains(anchor)) {
-                console.log(`${LOG_PREFIX} 选区不在 #chat 内，忽略`);
-                hideFloatingButton();
-                return;
-            }
-
-            selectedText = text;
-            console.log(`${LOG_PREFIX} ✅ 检测到选中文本，长度=${text.length}: "${text.substring(0, 50)}..."`);
-
-            // 计算弹出位置：选区末尾的下方
-            const range = selection.getRangeAt(0);
-            const rect = range.getBoundingClientRect();
-            console.log(`${LOG_PREFIX} 选区矩形:`, JSON.stringify({
-                top: Math.round(rect.top),
-                left: Math.round(rect.left),
-                bottom: Math.round(rect.bottom),
-                width: Math.round(rect.width),
-                height: Math.round(rect.height)
-            }));
-            showFloatingButton(rect);
-        } catch (err) {
-            console.error(`${LOG_PREFIX} 选区检测异常:`, err);
-        }
-    });
-}
-
-/**
- * 鼠标按下回调 —— 隐藏按钮
- */
-function onMouseDown(e) {
-    if (!floatingBtn) return;
-    if (floatingBtn.contains(e.target)) return;
-    if (floatingBtn.style.display === 'none') return;
-
-    setTimeout(() => {
-        const sel = window.getSelection();
-        if (!sel || !sel.toString().trim()) {
-            hideFloatingButton();
-        }
-    }, 250);
-}
-
-/**
- * 显示浮动按钮（使用 left/top 定位）
- */
-function showFloatingButton(rect) {
-    if (!floatingBtn) return;
-
-    const btnWidth = 80;
-    const btnHeight = 32;
-
-    let left = rect.left + (rect.width / 2) - (btnWidth / 2);
-    let top = rect.bottom + 8;
-
-    // 防止超出屏幕
-    left = Math.max(8, Math.min(left, window.innerWidth - btnWidth - 8));
-    if (top + btnHeight > window.innerHeight - 8) {
-        top = rect.top - btnHeight - 8;
-    }
-
-    // 使用 left/top 并清除 right/bottom（绕开 SillyTavern transform 问题）
-    floatingBtn.style.position = 'fixed';
-    floatingBtn.style.left = `${left}px`;
-    floatingBtn.style.top = `${top}px`;
-    floatingBtn.style.right = 'auto';
-    floatingBtn.style.bottom = 'auto';
-
-    // 直接设置可见性（不依赖 CSS transition 的 opacity）
-    floatingBtn.style.display = 'flex';
-    floatingBtn.style.opacity = '1';
-    floatingBtn.style.transform = 'translateY(0)';
-    floatingBtn.classList.add('cg-sel-gen-show');
-
-    console.log(`${LOG_PREFIX} 🎨 浮动按钮已显示 at (${Math.round(left)}, ${Math.round(top)})`);
-
-    // 即时诊断按钮实际位置
-    requestAnimationFrame(() => {
-        const btnRect = floatingBtn.getBoundingClientRect();
-        const inViewport = btnRect.left >= 0 && btnRect.top >= 0 &&
-            btnRect.right <= window.innerWidth && btnRect.bottom <= window.innerHeight;
-        console.log(`${LOG_PREFIX} 按钮实际位置:`,
-            JSON.stringify({ top: Math.round(btnRect.top), left: Math.round(btnRect.left) }),
-            '在视口内:', inViewport);
-        if (!inViewport) {
-            console.warn(`${LOG_PREFIX} ⚠️ 按钮不在视口内！尝试强制修正...`);
-            // 强制修正到可见位置
-            floatingBtn.style.left = `${Math.max(8, Math.min(left, window.innerWidth - btnWidth - 8))}px`;
-            floatingBtn.style.top = `${Math.max(8, Math.min(top, window.innerHeight - btnHeight - 8))}px`;
-        }
-    });
-}
-
-/**
- * 隐藏浮动按钮
- */
-function hideFloatingButton() {
-    if (!floatingBtn) return;
-    if (floatingBtn.style.display === 'none') return;
-    floatingBtn.style.display = 'none';
-    floatingBtn.style.opacity = '0';
-    floatingBtn.classList.remove('cg-sel-gen-show');
-    selectedText = '';
-}
-
-/**
- * 点击生图回调
- */
-async function onGenerateClick(e) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (isGenerating || !selectedText) return;
-
-    const text = selectedText;
-    console.log(`${LOG_PREFIX} ▶ 开始生图，文本长度: ${text.length}`);
-    console.log(`${LOG_PREFIX}   选中内容: ${text.substring(0, 150)}...`);
-
-    try { addLog(`选中文本生图: "${text.substring(0, 50)}..."`); } catch (_) { }
-
-    isGenerating = true;
-    floatingBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>生成中</span>';
-    floatingBtn.classList.add('cg-sel-gen-loading');
-
-    try {
-        // 1. LLM 生成 tags
-        if (typeof toastr !== 'undefined') {
-            toastr.info('正在根据选中内容生成图片描述...', 'ComfyUI Gen');
-        }
-        const dynamicPrompt = await generateImagePromptFromText(text);
-
-        if (!dynamicPrompt) {
-            if (typeof toastr !== 'undefined') toastr.error('LLM 未返回有效标签', 'ComfyUI Gen');
+        if (isGenerating) {
+            toastr?.warning('已有生成任务正在进行中');
             return;
         }
-        console.log(`${LOG_PREFIX} ✅ LLM 生成 tags: ${dynamicPrompt.substring(0, 150)}`);
 
-        // 2. 构建 payload & 发送到 ComfyUI
-        if (typeof toastr !== 'undefined') toastr.info('正在生成图片...', 'ComfyUI Gen');
-        const params = buildPayload(dynamicPrompt);
-        const results = await sendToComfyUI(params);
+        const mesTextEl = mesElement.querySelector('.mes_text');
+        if (!mesTextEl) return;
+        const text = mesTextEl.innerText.trim();
+        if (!text) return;
 
-        // 3. 插入结果
-        if (results && results.length > 0) {
-            insertResultsToChat(results, `选中文本生图: ${text.substring(0, 30)}...`);
-            for (const r of results) {
-                if (r.type === 'image' && r.data) {
-                    try { addImageToCache(r.data, r.filename); } catch (_) { }
-                }
-            }
-            try { addLog(`选中文本生图完成，生成 ${results.length} 张图片`); } catch (_) { }
-            if (typeof toastr !== 'undefined') {
-                toastr.success(`生成了 ${results.length} 张图片！`, 'ComfyUI Gen');
-            }
-        } else {
-            if (typeof toastr !== 'undefined') toastr.warning('ComfyUI 未返回图片', 'ComfyUI Gen');
+        await handleGenerateIllustrations(text, btn);
+    });
+
+    nameTextContent.appendChild(btn);
+}
+
+/**
+ * 处理生成 3-5 张插图
+ */
+async function handleGenerateIllustrations(text, btnElement) {
+    isGenerating = true;
+    const ogHtml = btnElement.innerHTML;
+    btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    btnElement.style.color = '#b785f6';
+    btnElement.style.opacity = '1';
+
+    try {
+        console.log(`${LOG_PREFIX} 开始为文本生成插图 (文本长度: ${text.length})`);
+        toastr?.info('正在分析场景并生成 3-5 个插图提示词...');
+        try { addLog(`开始为消息生成 3-5 张插图...`); } catch (_) { }
+
+        // 生成 tags 数组
+        const tagsArray = await generateImagePromptFromText(text);
+
+        if (!tagsArray || tagsArray.length === 0) {
+            toastr?.warning('未能生成出有效的提示词');
+            return;
         }
+
+        toastr?.success(`成功生成 ${tagsArray.length} 个场景提示词，开始串行生图...`);
+
+        // 串行生成图片
+        for (let i = 0; i < tagsArray.length; i++) {
+            const tags = tagsArray[i];
+            console.log(`${LOG_PREFIX} 生成第 ${i + 1}/${tagsArray.length} 张图片, tags: ${tags.substring(0, 100)}...`);
+            toastr?.info(`正在生成第 ${i + 1}/${tagsArray.length} 张图...`, 'ComfyUI Gen', { timeOut: 3000 });
+
+            try { addLog(`生成第 ${i + 1} 张图片: ${tags.substring(0, 50)}...`); } catch (_) { }
+
+            const params = buildPayload(tags);
+            const results = await sendToComfyUI(params);
+
+            if (results && results.length > 0) {
+                insertResultsToChat(results, tags);
+                for (const r of results) {
+                    if (r.type === 'image' && r.data) {
+                        try { addImageToCache(r.data, r.filename); } catch (_) { }
+                    }
+                }
+            } else {
+                toastr?.warning(`第 ${i + 1} 张图片生成失败 (ComfyUI 无返回)`);
+            }
+        }
+
+        toastr?.success('所有插图生成完毕！');
+        try { addLog(`成功为消息生成了 ${tagsArray.length} 张图片`); } catch (_) { }
+
     } catch (err) {
-        console.error(`${LOG_PREFIX} ❌ 生图失败:`, err);
-        if (typeof toastr !== 'undefined') toastr.error('生图失败: ' + err.message, 'ComfyUI Gen');
-        try { addLog(`选中文本生图失败: ${err.message}`); } catch (_) { }
+        console.error(`${LOG_PREFIX} ❌ 生成插图失败:`, err);
+        toastr?.error('生成失败: ' + err.message);
     } finally {
         isGenerating = false;
-        if (floatingBtn) {
-            floatingBtn.innerHTML = '<i class="fa-solid fa-palette"></i><span>生图</span>';
-            floatingBtn.classList.remove('cg-sel-gen-loading');
-        }
-        hideFloatingButton();
+        btnElement.innerHTML = ogHtml;
+        btnElement.style.color = '';
+        btnElement.style.opacity = '';
     }
 }

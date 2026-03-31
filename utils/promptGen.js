@@ -193,36 +193,48 @@ export async function callLLM(systemPrompt, userPrompt, maxTokens = 500, tempera
 
 /**
  * 解析 LLM 返回的图片标签
- * 支持: <image>tags</image>, <images>tags</images>, 或纯逗号分隔标签
+ * 支持: 多组 image###tags### 格式
  * @param {string} llmResponse
- * @returns {string} 清理后的 danbooru tags
+ * @returns {Array<string>} 清理后的 danbooru tags 数组
  */
 function parseImageTags(llmResponse) {
     let text = llmResponse || '';
 
-    // 移除 <thinking> 标签
-    text = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
-
-    // 尝试提取 <image> 或 <images> 标签内容
-    const imageMatch = text.match(/<images?>([\s\S]*?)<\/images?>/i);
-    if (imageMatch) {
-        console.log(`${LOG_PREFIX} 检测到 <image> 标签，提取内容`);
-        text = imageMatch[1];
-    }
-
     // 移除 markdown 代码块
     text = text.replace(/```[\s\S]*?```/g, '');
 
-    // 清理多余空白和换行，统一为逗号分隔
-    text = text
-        .replace(/\n+/g, ', ')
+    const regex = /image###([\s\S]*?)###/gi;
+    const matches = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        let tagsStr = match[1].trim();
+        tagsStr = tagsStr.replace(/\n+/g, ', ')
+            .replace(/\s{2,}/g, ' ')
+            .replace(/,\s*,/g, ',')
+            .replace(/^[\s,]+|[\s,]+$/g, '')
+            .trim();
+        if (tagsStr.length > 0) {
+            matches.push(tagsStr);
+        }
+    }
+
+    if (matches.length > 0) {
+        console.log(`${LOG_PREFIX} 解析到 ${matches.length} 组带 image### 的 tags`);
+        return matches;
+    }
+
+    // 回退机制：如果没有使用 image### 格式，直接解析全部
+    text = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+    const imageMatch = text.match(/<images?>([\s\S]*?)<\/images?>/i);
+    if (imageMatch) text = imageMatch[1];
+
+    text = text.replace(/\n+/g, ', ')
         .replace(/\s{2,}/g, ' ')
         .replace(/,\s*,/g, ',')
         .replace(/^[\s,]+|[\s,]+$/g, '')
         .trim();
 
-    console.log(`${LOG_PREFIX} 解析后的最终 tags (长度=${text.length}): ${text}`);
-    return text;
+    return text ? [text] : [];
 }
 
 /**
@@ -260,11 +272,11 @@ export async function generateImagePrompt(userTags = '') {
 }
 
 /**
- * 从指定文本生成图片提示词（用于选中文本生图）
- * 使用专门的「场景分析 Agent」系统提示词，深度提取场景要素
- * @param {string} text - 用户选中的文本
+ * 从指定文本生成图片提示词（用于消息级别生图）
+ * 使用专门的「场景分析 Agent」系统提示词，深度提取场景要素并生成 3-5 个插图 prompt
+ * @param {string} text - 对话消息文本
  * @param {string} userTags - 用户手动输入的附加标签（可空）
- * @returns {Promise<string>} 生成的 danbooru-style prompt
+ * @returns {Promise<Array<string>>} 生成的 danbooru-style prompt 数组
  */
 export async function generateImagePromptFromText(text, userTags = '') {
     console.log(`${LOG_PREFIX} ===== generateImagePromptFromText 开始 =====`);
@@ -288,47 +300,42 @@ export async function generateImagePromptFromText(text, userTags = '') {
     // ===== 专用 User Prompt =====
     let userPrompt = `请深度分析以下叙事文本，提取所有视觉要素并生成高质量的图片提示词。
 
-<待分析文本>
-${text.substring(0, 2000)}
-</待分析文本>`;
+<叙事文本>
+${text}
+</叙事文本>`;
 
-    if (userTags && userTags.trim()) {
-        userPrompt += `\n\n<用户额外要求>\n${userTags.trim()}\n</用户额外要求>`;
+    if (userTags) {
+        userPrompt += `\n\n用户附加了以下固定特征，请确保将它们融合到每个生成的标签序列末尾：${userTags}`;
     }
-
-    userPrompt += `
-
-请按照你的职责，逐维度分析文本后，输出最终的 danbooru-style 逗号分隔标签。
-只输出标签，不要输出分析过程或任何解释文字。`;
-
-    console.log(`${LOG_PREFIX} Scene Analysis Agent prompt 长度: system=${systemPrompt.length}, user=${userPrompt.length}`);
 
     // 调用 LLM
     const llmResponse = await callLLM(systemPrompt, userPrompt);
 
-    // 解析结果并替换宏
-    let tags = parseImageTags(llmResponse);
+    // 解析结果并替换宏（支持多个插图 tags）
+    let tagsArray = parseImageTags(llmResponse);
 
-    // 替换角色宏
-    if (character && character.positivePrompt) {
-        tags = tags.replace(/\$character\$/g, character.positivePrompt);
-    } else {
-        tags = tags.replace(/\$character\$/g, ""); // 清除未使用的宏
-    }
+    tagsArray = tagsArray.map(tags => {
+        // 替换角色宏
+        if (character && character.positivePrompt) {
+            tags = tags.replace(/\$character\$/g, character.positivePrompt);
+        } else {
+            tags = tags.replace(/\$character\$/g, ""); // 清除未使用的宏
+        }
 
-    // 替换服装宏
-    if (outfit && outfit.positivePrompt) {
-        tags = tags.replace(/\$outfit\$/g, outfit.positivePrompt);
-    } else {
-        tags = tags.replace(/\$outfit\$/g, ""); // 清除未使用的宏
-    }
+        // 替换服装宏
+        if (outfit && outfit.positivePrompt) {
+            tags = tags.replace(/\$outfit\$/g, outfit.positivePrompt);
+        } else {
+            tags = tags.replace(/\$outfit\$/g, ""); // 清除未使用的宏
+        }
 
-    // 清理可能产生的多余逗号
-    tags = tags.replace(/,\s*,/g, ',').replace(/^[\s,]+|[\s,]+$/g, '');
+        // 清理可能产生的多余逗号
+        return tags.replace(/,\s*,/g, ',').replace(/^[\s,]+|[\s,]+$/g, '');
+    });
 
-    console.log(`${LOG_PREFIX} 最终合成 Tags: ${tags.substring(0, 150)}...`);
+    console.log(`${LOG_PREFIX} 最终生成 ${tagsArray.length} 个合成 Tags 列表`);
     console.log(`${LOG_PREFIX} ===== generateImagePromptFromText 完成 =====`);
-    return tags;
+    return tagsArray;
 }
 
 /**
@@ -392,21 +399,22 @@ const SCENE_ANALYSIS_SYSTEM_PROMPT = `你是一个专业的「视觉场景分析
 
 ## 输出规则
 
-1. **只输出**逗号分隔的英文 danbooru-style 标签，**不要**有任何解释或分析过程。
-2. 标签数量必须在 **30-60 个**之间，尽可能详尽地榨取文本中的所有细节（特别是环境、光照、动作细节）。
-3. 排列顺序：宏指令 -> 镜头视角 -> 补充外观/服装 -> 动作姿势 -> 表情 -> 环境背景 -> 光影氛围 -> 画布质量。
-4. 如果有 \`<可用宏指令>\`，请务必将其**原封不动**地输出（如 \`$character$\`, \`$outfit$\`），我们会做后续的文本替换。
-5. 请使用下划线连接复杂词组（如 \`deep_v_neckline\`, \`parted_lips\`, \`wringing_hands\`, \`restaurant_background\`）。
+1. **绝对强制的外层格式：** 你**必须**为文本切分出 3 到 5 个最具画面感的插图瞬间。对于每个瞬间，你必须输出唯一的 \`image###\` 作为开始，\`###\` 作为结束！
+例如：\`image###1girl, blush, $character$###\`。
+除了这些包裹内容的标签外，不要输出任何其他的分析或换行。
 
-## 示例
+2. **标签规范**：**只输出**逗号分隔的英文 danbooru-style 标签。
+3. 标签数量：每张插图应具有丰富的细节，控制在 **30-60 个**标签之间。
+4. 如果系统提供了 \`<可用宏指令>\`（如 \`$character$\`, \`$outfit$\`），请务必在每个 \`image###...###\` 块中按需使用这些宏来代表角色！
+5. 请使用下划线连接复杂词组（如 \`deep_v_neckline\`, \`parted_lips\`）。
 
-输入文本: "她站在月光与灯光的交界处，像是一只待宰的白羊。她的眼神里那种倔强的光芒还在，但瞳孔深处，那抹属于被征服者的卑微已经开始疯狂蔓延。"
-
-输出:
-1girl, solo, purple hair, long hair, purple eyes, standing, moonlight, dramatic lighting, half shadow, defiant eyes, teary eyes, trembling, pale skin, flushed cheeks, dim lighting, from front, cinematic composition, dark atmosphere, emotional, clenched fists, tense pose, indoor, spotlight, deep shadows, beautiful detailed eyes, masterpiece, best quality, highly detailed
+## 示例输出格式
+image###1girl, solo, $character$, $outfit$, standing, moonlight, dramatic lighting, teary eyes, pale skin, flushed cheeks, dim lighting, from front, cinematic composition, dark atmosphere, masterpiece, best quality###
+image###1girl, close-up, $character$, $outfit$, emotional, clenched fists, tense pose, indoor, spotlight, deep shadows, beautiful detailed eyes, masterpiece, best quality###
+image###1girl, upper_body, $character$, torn clothes, bare shoulders, looking down, panting, sweating, dark alley, rain, masterpiece, best quality###
 
 输入文本: "外套顺着圆润的肩头滑落到地毯上，发出沉闷的响声。她缓缓解开了西装腰间的扣子。"
 
 输出:
-1girl, solo, jacket falling off, bare shoulders, round shoulders, unbuttoning, business suit, skirt, standing, carpet, indoor, dim room, sensual atmosphere, from front, upper body, looking down, concentrated expression, elegant hands, fingers on button, clothes sliding off, soft lighting, warm tones, masterpiece, best quality, highly detailed`;
+image###1girl, solo, $character$, $outfit$, jacket falling off, bare shoulders, round shoulders, unbuttoning, standing, carpet, indoor, dim room, sensual atmosphere, from front, upper body, looking down, concentrated expression, elegant hands, fingers on button, clothes sliding off, soft lighting, warm tones, masterpiece, best quality, highly detailed###`;
 
