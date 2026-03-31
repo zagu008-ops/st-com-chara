@@ -108,6 +108,33 @@ function createFabElement() {
     }
 
     document.body.appendChild(fabElement);
+
+    // 窗口缩放时重新约束 FAB 位置，防止缩小后 FAB 跑到屏幕外
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            if (!fabElement) return;
+            const maxRight = window.innerWidth - 60;
+            const maxBottom = window.innerHeight - 60;
+            const isMobile = window.innerWidth <= 600;
+            const minBottom = isMobile ? 90 : 0;
+
+            let curRight = parseInt(fabElement.style.right) || 20;
+            let curBottom = parseInt(fabElement.style.bottom) || 80;
+
+            curRight = Math.max(0, Math.min(curRight, maxRight));
+            curBottom = Math.max(minBottom, Math.min(curBottom, maxBottom));
+
+            fabElement.style.right = curRight + 'px';
+            fabElement.style.bottom = curBottom + 'px';
+
+            // 同步菜单位置
+            if (menuElement && isMenuOpen) {
+                positionMenu();
+            }
+        }, 100);
+    });
 }
 
 /**
