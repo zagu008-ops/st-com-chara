@@ -20,7 +20,7 @@ import { addImageToCache, initImageCacheEvents } from './utils/imageCache.js';
 import { addLog, addTask, updateTask, initLogEvents } from './utils/logger.js';
 import { initChatButtons } from './utils/chatButtons.js';
 import { generateGlobalOutline, generateChapterTrend } from './utils/novelAiHelper.js';
-import { SlashCommandParser } from '../../../../slash-commands/SlashCommandParser.js';
+import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 
 // ============ 初始化 ============
 
