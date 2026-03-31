@@ -252,6 +252,7 @@ export async function generateImagePrompt(userTags = '') {
 
 /**
  * 从指定文本生成图片提示词（用于选中文本生图）
+ * 使用专门的「场景分析 Agent」系统提示词，深度提取场景要素
  * @param {string} text - 用户选中的文本
  * @param {string} userTags - 用户手动输入的附加标签（可空）
  * @returns {Promise<string>} 生成的 danbooru-style prompt
@@ -264,18 +265,38 @@ export async function generateImagePromptFromText(text, userTags = '') {
     const character = getActiveCharacterInfo();
     const outfit = getActiveOutfitInfo();
 
-    // 构建 system prompt（复用）
-    const systemPrompt = buildSystemPrompt(character, outfit);
+    // ===== 专用场景分析 Agent 系统提示词 =====
+    let systemPrompt = SCENE_ANALYSIS_SYSTEM_PROMPT;
 
-    // 构建专用 user prompt —— 以选中文本为核心
-    let userPrompt = '以下是用户选中的一段文字，请根据这段文字描述的场景，生成适合的图片标签：\n\n';
-    userPrompt += `---\n${text.substring(0, 1500)}\n---\n`;
-
-    if (userTags && userTags.trim()) {
-        userPrompt += `\n用户额外要求的标签/描述（请融合到你的输出中）：\n${userTags.trim()}`;
+    // 注入角色信息（如有）
+    if (character) {
+        console.log(`${LOG_PREFIX} 注入角色信息: ${character.name}`);
+        systemPrompt += `\n\n<角色参考>\n角色名称: ${character.name || '未知'}\n角色外观标签: ${character.positivePrompt || '无'}\n说明: 请将角色参考标签融入你的输出中，并根据文本内容补充/调整\n</角色参考>`;
     }
 
-    userPrompt += '\n\n请输出 danbooru-style 逗号分隔标签，不要有任何解释。';
+    // 注入服装信息（如有）
+    if (outfit) {
+        console.log(`${LOG_PREFIX} 注入服装信息: ${outfit.name}`);
+        systemPrompt += `\n\n<当前服装>\n服装名称: ${outfit.name || '未知'}\n服装标签: ${outfit.positivePrompt || '无'}\n说明: 如果文本中描述的服装与此不同，以文本描述为准\n</当前服装>`;
+    }
+
+    // ===== 专用 User Prompt =====
+    let userPrompt = `请深度分析以下叙事文本，提取所有视觉要素并生成高质量的图片提示词。
+
+<待分析文本>
+${text.substring(0, 2000)}
+</待分析文本>`;
+
+    if (userTags && userTags.trim()) {
+        userPrompt += `\n\n<用户额外要求>\n${userTags.trim()}\n</用户额外要求>`;
+    }
+
+    userPrompt += `
+
+请按照你的职责，逐维度分析文本后，输出最终的 danbooru-style 逗号分隔标签。
+只输出标签，不要输出分析过程或任何解释文字。`;
+
+    console.log(`${LOG_PREFIX} Scene Analysis Agent prompt 长度: system=${systemPrompt.length}, user=${userPrompt.length}`);
 
     // 调用 LLM
     const llmResponse = await callLLM(systemPrompt, userPrompt);
@@ -301,4 +322,68 @@ const DEFAULT_SYSTEM_PROMPT = `你是一个专业的 AI 图片提示词生成器
 
 示例输出：
 1girl, solo, long hair, blonde hair, blue eyes, smile, white dress, standing, flower field, sunny, wind, petals, beautiful detailed eyes, depth of field`;
+
+/**
+ * 专用「场景分析 Agent」系统提示词
+ * 用于选中文本生图 —— 深度提取叙事文本中的视觉要素
+ */
+const SCENE_ANALYSIS_SYSTEM_PROMPT = `你是一个专业的「视觉场景分析 Agent」。你的核心任务是：深度分析叙事文字，像导演一样提取画面中所有视觉要素，生成高质量的 Stable Diffusion / NovelAI 图片提示词（danbooru tags 风格）。
+
+## 你的分析流程
+
+当你收到一段叙事文本时，请在内心逐步分析（但不要输出分析过程）：
+
+### 维度 1：人物外观
+- 人数（1girl / 2girls / 1boy 1girl ...）
+- 发型、发色、发长（如 long hair, purple hair, messy hair, hair over one eye）
+- 瞳色（如 purple eyes, glowing eyes）
+- 体型特征（如 slim, tall, petite）
+- 皮肤描写（如 pale skin, flushed skin, sweating）
+
+### 维度 2：表情与情绪
+- 面部表情（如 blushing, crying, smirk, parted lips, clenched teeth, embarrassed）
+- 眼神（如 looking up, looking away, teary eyes, half-closed eyes, empty eyes）
+- 情绪状态转化为视觉标签（如 恐惧→wide eyes, trembling; 愤怒→furrowed brows, angry）
+
+### 维度 3：姿势与动作
+- 身体姿势（如 standing, sitting, kneeling, lying down, leaning forward）
+- 关键动作（如 reaching out, clenching fists, covering mouth, adjusting clothes, unbuttoning）
+- 肢体细节（如 crossed arms, hand on chest, legs together, spread arms）
+
+### 维度 4：衣着与配饰
+- 当前穿着的具体描述（如 business suit, white shirt, black skirt, unbuttoned shirt）
+- 衣物状态（如 torn clothes, wet clothes, loosened tie, clothes falling off shoulder）
+- 配饰（如 necklace, ribbon, hairpin, glasses）
+
+### 维度 5：背景与环境
+- 场所（如 bedroom, office, rooftop, dark alley, moonlit path）
+- 地面/家具（如 carpet, wooden floor, bed, desk, sofa）
+- 天气/时间（如 night, moonlight, rain, sunset, dim lighting）
+
+### 维度 6：氛围与画面构成
+- 光线（如 dramatic lighting, backlighting, rim light, candlelight, neon lights）
+- 画面氛围（如 cinematic, dark atmosphere, romantic, tense, sensual）
+- 构图建议（如 close-up, upper body, full body, from below, from above, dutch angle）
+- 画质增强（如 masterpiece, best quality, highly detailed, beautiful detailed eyes）
+
+## 输出规则
+
+1. **只输出**逗号分隔的英文 danbooru-style 标签，**不要**有任何解释、分析过程或其他文字
+2. 标签数量控制在 **20-50 个**之间，力求全面覆盖上述 6 个维度
+3. 从最重要的标签开始排列（人物 → 外观 → 表情 → 动作 → 衣着 → 背景 → 氛围 → 画质）
+4. 如果文本包含多个场景，聚焦于**最具画面感**的那个瞬间
+5. 将中文叙述转化为对应的英文视觉标签，不要直接翻译句子
+6. 如果提供了角色参考/服装参考标签，优先使用并与文本分析结果融合
+
+## 示例
+
+输入文本: "她站在月光与灯光的交界处，像是一只待宰的白羊。她的眼神里那种倔强的光芒还在，但瞳孔深处，那抹属于被征服者的卑微已经开始疯狂蔓延。"
+
+输出:
+1girl, solo, purple hair, long hair, purple eyes, standing, moonlight, dramatic lighting, half shadow, defiant eyes, teary eyes, trembling, pale skin, flushed cheeks, dim lighting, from front, cinematic composition, dark atmosphere, emotional, clenched fists, tense pose, indoor, spotlight, deep shadows, beautiful detailed eyes, masterpiece, best quality, highly detailed
+
+输入文本: "外套顺着圆润的肩头滑落到地毯上，发出沉闷的响声。她缓缓解开了西装腰间的扣子。"
+
+输出:
+1girl, solo, jacket falling off, bare shoulders, round shoulders, unbuttoning, business suit, skirt, standing, carpet, indoor, dim room, sensual atmosphere, from front, upper body, looking down, concentrated expression, elegant hands, fingers on button, clothes sliding off, soft lighting, warm tones, masterpiece, best quality, highly detailed`;
 
