@@ -146,12 +146,21 @@ export async function callLLM(systemPrompt, userPrompt, maxTokens = 500, tempera
         headers['Authorization'] = `Bearer ${apiKey}`;
     }
 
+    const messages = [];
+    if (s.llm_merge_system_user) {
+        console.log(`${LOG_PREFIX} 启用 "合并 System 和 User" 机制 (防过滤)`);
+        let combined = '';
+        if (systemPrompt) combined += `<System Instructions>\n${systemPrompt}\n</System Instructions>\n\n`;
+        if (userPrompt) combined += userPrompt;
+        messages.push({ role: 'user', content: combined.trim() });
+    } else {
+        if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+        if (userPrompt) messages.push({ role: 'user', content: userPrompt });
+    }
+
     const body = {
         model: model,
-        messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-        ],
+        messages: messages,
         temperature: temperature,
         max_tokens: maxTokens,
     };

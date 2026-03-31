@@ -73,6 +73,7 @@ export const defaultSettings = {
     llm_interrogate_key: '',        // API Key
     llm_interrogate_model: '',      // 模型名
     llm_interrogate_prompt: 'Please analyze this image and generate Stable Diffusion / NovelAI style tags (danbooru tags). Output ONLY comma-separated tags, no explanation. Include: character count, hair color/style, eye color, clothing, pose, expression, background, art style.',
+    llm_merge_system_user: false,
 
     // 预设数据
     outfit_presets: [],

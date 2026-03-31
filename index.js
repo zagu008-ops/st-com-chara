@@ -166,6 +166,11 @@ function bindSettingsEvents() {
         if (fab) fab.style.display = this.checked ? 'flex' : 'none';
     });
 
+    $('#comfyui-gen-llm-merge-system-user').on('change', function () {
+        extension_settings[extensionName].llm_merge_system_user = this.checked;
+        saveSettingsDebounced();
+    });
+
     // 反推模式切换
     $('#comfyui-gen-interrogate-mode').on('change', function () {
         const mode = $(this).val();
@@ -633,6 +638,7 @@ function loadSettingsToUI() {
     $('#comfyui-gen-llm-interrogate-key').val(s.llm_interrogate_key || '');
     $('#comfyui-gen-llm-interrogate-model').val(s.llm_interrogate_model || '');
     $('#comfyui-gen-llm-interrogate-prompt').val(s.llm_interrogate_prompt || '');
+    $('#comfyui-gen-llm-merge-system-user').prop('checked', !!s.llm_merge_system_user);
     $('#comfyui-gen-llm-interrogate-section').toggle(s.interrogate_mode === 'llm');
     $('#comfyui-gen-comfyui-interrogate-section').toggle(s.interrogate_mode !== 'llm');
 
