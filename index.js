@@ -18,6 +18,7 @@ import { registerAutoTrigger, toggleAutoTrigger } from './utils/autoTrigger.js';
 import { initAiHelperEvents } from './utils/workflowAiHelper.js?v=2';
 import { addImageToCache, initImageCacheEvents } from './utils/imageCache.js';
 import { addLog, addTask, updateTask, initLogEvents } from './utils/logger.js';
+import { initChatButtons } from './utils/chatButtons.js';
 
 // ============ 初始化 ============
 
@@ -57,6 +58,9 @@ async function init() {
 
     // 注册自动生图事件
     registerAutoTrigger();
+
+    // 初始化选中文本生图按钮
+    initChatButtons();
 
     console.log('[ComfyUI Gen] 插件初始化完成');
 }

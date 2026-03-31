@@ -251,6 +251,42 @@ export async function generateImagePrompt(userTags = '') {
 }
 
 /**
+ * 从指定文本生成图片提示词（用于选中文本生图）
+ * @param {string} text - 用户选中的文本
+ * @param {string} userTags - 用户手动输入的附加标签（可空）
+ * @returns {Promise<string>} 生成的 danbooru-style prompt
+ */
+export async function generateImagePromptFromText(text, userTags = '') {
+    console.log(`${LOG_PREFIX} ===== generateImagePromptFromText 开始 =====`);
+    console.log(`${LOG_PREFIX} 输入文本长度: ${text.length}`);
+
+    // 获取角色/服装信息
+    const character = getActiveCharacterInfo();
+    const outfit = getActiveOutfitInfo();
+
+    // 构建 system prompt（复用）
+    const systemPrompt = buildSystemPrompt(character, outfit);
+
+    // 构建专用 user prompt —— 以选中文本为核心
+    let userPrompt = '以下是用户选中的一段文字，请根据这段文字描述的场景，生成适合的图片标签：\n\n';
+    userPrompt += `---\n${text.substring(0, 1500)}\n---\n`;
+
+    if (userTags && userTags.trim()) {
+        userPrompt += `\n用户额外要求的标签/描述（请融合到你的输出中）：\n${userTags.trim()}`;
+    }
+
+    userPrompt += '\n\n请输出 danbooru-style 逗号分隔标签，不要有任何解释。';
+
+    // 调用 LLM
+    const llmResponse = await callLLM(systemPrompt, userPrompt);
+
+    // 解析结果
+    const tags = parseImageTags(llmResponse);
+    console.log(`${LOG_PREFIX} ===== generateImagePromptFromText 完成 =====`);
+    return tags;
+}
+
+/**
  * 默认的 LLM 系统提示词
  */
 const DEFAULT_SYSTEM_PROMPT = `你是一个专业的 AI 图片提示词生成器。你的任务是根据聊天记录中最新的场景描述，生成适合 Stable Diffusion / NovelAI 风格的图片标签（danbooru tags）。
@@ -265,3 +301,4 @@ const DEFAULT_SYSTEM_PROMPT = `你是一个专业的 AI 图片提示词生成器
 
 示例输出：
 1girl, solo, long hair, blonde hair, blue eyes, smile, white dress, standing, flower field, sunny, wind, petals, beautiful detailed eyes, depth of field`;
+

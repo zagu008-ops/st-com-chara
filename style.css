@@ -1297,3 +1297,67 @@
     background: var(--cg-bg-tertiary);
     border-color: var(--cg-primary);
 }
+
+/* ============ 选中文本生图浮动按钮 ============ */
+
+.cg-sel-gen-btn {
+    position: absolute;
+    z-index: 10002;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: rgba(99, 102, 241, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
+    transition: all 0.2s ease;
+    user-select: none;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: auto;
+}
+
+.cg-sel-gen-btn.cg-sel-gen-show {
+    opacity: 1;
+    transform: translateY(0);
+    animation: cg-sel-pop 0.2s ease-out;
+}
+
+.cg-sel-gen-btn:hover {
+    background: rgba(99, 102, 241, 1);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px);
+}
+
+.cg-sel-gen-btn:active {
+    transform: scale(0.95);
+}
+
+.cg-sel-gen-btn.cg-sel-gen-loading {
+    pointer-events: none;
+    opacity: 0.8;
+    background: rgba(99, 102, 241, 0.7);
+}
+
+.cg-sel-gen-btn i {
+    font-size: 14px;
+}
+
+@keyframes cg-sel-pop {
+    0% {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.9);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
