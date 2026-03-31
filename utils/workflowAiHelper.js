@@ -13,6 +13,7 @@ import { sysLog } from './comfyui.js';
 const LOG_PREFIX = '[ComfyUI Gen][AI Helper]';
 
 let chatHistory = [];
+let currentSessionId = '';
 
 /**
  * 获取当前设置
@@ -260,7 +261,7 @@ async function executeAiCommands(jsonText, workflowStr) {
 
             // == Internal Configuration Modifiers ==
             else if (action.type === 'trigger_test_gen') {
-                $('#comfyui-gen-test').click();
+                $('#comfyui-gen-test-workflow').click();
                 uiHtml += `
                     <div class="cg-ai-tool-call" style="margin-top: 10px;">
                         <div style="color: #27ae60; font-size: 0.85em; margin-bottom: 5px;">🎨 智绘姬已触发测试生图任务...</div>
@@ -345,14 +346,158 @@ async function executeAiCommands(jsonText, workflowStr) {
     }
 }
 
+// ============ 独立 LLM 调用（优先使用 AI 助手独立配置）============
+
+async function callAiLLM(systemPrompt, userPrompt) {
+    const s = getSettings();
+
+    // 优先使用 AI 助手独立配置，fallback 到反推配置
+    const apiUrl = s.ai_api_url || s.llm_interrogate_url;
+    const apiKey = s.ai_api_key || s.llm_interrogate_key;
+    const model = s.ai_model || s.llm_interrogate_model;
+    const maxTokens = s.ai_max_tokens || 4000;
+    const temperature = s.ai_temperature != null ? s.ai_temperature : 0.7;
+    const topP = s.ai_top_p != null ? s.ai_top_p : 1.0;
+
+    if (!apiUrl || !model) {
+        throw new Error('缺少 LLM 配置：请在 AI 助手设置或反推 Tab 中填写 API 地址和模型名');
+    }
+
+    // 如果有独立配置，直接调用；否则 fallback 到 promptGen.callLLM
+    if (s.ai_api_url && s.ai_model) {
+        const url = apiUrl.replace(/\/$/, '') + '/chat/completions';
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+        const body = {
+            model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            max_tokens: maxTokens,
+            temperature,
+            top_p: topP,
+        };
+
+        sysLog(`[Agent] Calling independent AI LLM: ${model} @ ${url}`);
+        const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+        if (!resp.ok) {
+            const errText = await resp.text();
+            throw new Error(`LLM API ${resp.status}: ${errText.substring(0, 200)}`);
+        }
+        const data = await resp.json();
+        return data.choices?.[0]?.message?.content || '';
+    } else {
+        // Fallback to shared callLLM from promptGen
+        return await callLLM(systemPrompt, userPrompt, maxTokens, temperature);
+    }
+}
+
+// ============ 模型列表获取 ============
+
+async function fetchAvailableModels() {
+    const s = getSettings();
+    const apiUrl = s.ai_api_url || s.llm_interrogate_url;
+    const apiKey = s.ai_api_key || s.llm_interrogate_key;
+
+    if (!apiUrl) {
+        toastr.warning('请先填写 API 地址', 'AI 助手');
+        return [];
+    }
+
+    const url = apiUrl.replace(/\/$/, '') + '/models';
+    const headers = {};
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    sysLog(`[Agent] Fetching models from: ${url}`);
+    const resp = await fetch(url, { headers });
+    if (!resp.ok) throw new Error(`获取模型列表失败: ${resp.status}`);
+    const data = await resp.json();
+    // OpenAI format: data.data = [{ id: 'model-name' }, ...]
+    return (data.data || data || []).map(m => m.id || m.name || m).filter(Boolean);
+}
+
+// ============ 聊天会话管理 ============
+
+function generateSessionId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+}
+
+function saveChatSession() {
+    if (!currentSessionId || chatHistory.length === 0) return;
+    const s = getSettings();
+    if (!s.ai_chat_sessions) s.ai_chat_sessions = {};
+
+    // 自动标题：取第一条用户消息前 30 字
+    const firstUserMsg = chatHistory.find(m => m.role === 'user');
+    const title = firstUserMsg ? firstUserMsg.content.substring(0, 30) : '新对话';
+
+    s.ai_chat_sessions[currentSessionId] = {
+        messages: chatHistory,
+        title,
+        updatedAt: Date.now(),
+    };
+    s.ai_current_session_id = currentSessionId;
+    saveSettingsDebounced();
+}
+
+function loadChatSession(sessionId) {
+    const s = getSettings();
+    const session = s.ai_chat_sessions?.[sessionId];
+    if (!session) return false;
+
+    chatHistory = session.messages || [];
+    currentSessionId = sessionId;
+    s.ai_current_session_id = sessionId;
+
+    // 重建聊天 UI
+    const chatBody = $('#cg-ai-chat-body');
+    chatBody.empty();
+    for (const msg of chatHistory) {
+        if (msg.role === 'system') continue; // Skip tool results
+        appendMessage(msg.role === 'assistant' ? 'ai' : 'user', msg.content);
+    }
+
+    saveSettingsDebounced();
+    return true;
+}
+
+function createNewSession() {
+    // 保存当前会话
+    saveChatSession();
+    // 创建新会话
+    chatHistory = [];
+    currentSessionId = generateSessionId();
+    getSettings().ai_current_session_id = currentSessionId;
+
+    // 重置 UI
+    const chatBody = $('#cg-ai-chat-body');
+    chatBody.empty();
+    chatBody.append(`
+        <div class="cg-ai-msg system-msg">
+            <div class="msg-avatar"><i class="fa-solid fa-robot"></i></div>
+            <div class="msg-content">你好！我是 ComfyUI Gen 的 AI 配置助手。有什么可以帮到你？</div>
+        </div>
+    `);
+    saveSettingsDebounced();
+    toastr.info('已创建新对话', 'AI 助手');
+}
+
 /**
  * 发送消息并获取回复 (包含自动工具回归机制)
  */
 async function sendChatMessage(userMessage, isRecursive = false) {
     const s = getSettings();
     if (!isRecursive) {
-        if (!s.llm_interrogate_url || !s.llm_interrogate_model) {
-            toastr.error('缺少大模型配置 (请在左侧 [反推] -> [LLM 视觉模型配置] 填写 API 和模型)', 'ComfyUI AI 助手');
+        // 确保有 session
+        if (!currentSessionId) currentSessionId = generateSessionId();
+
+        // 检查 LLM 配置 (优先 AI 独立，fallback 反推)
+        const apiUrl = s.ai_api_url || s.llm_interrogate_url;
+        const model = s.ai_model || s.llm_interrogate_model;
+        if (!apiUrl || !model) {
+            toastr.error('缺少大模型配置 (请点击 ⚙️ 在 AI 助手设置中填写 API 和模型，或在反推 Tab 中配置)', 'ComfyUI AI 助手');
             return;
         }
 
@@ -399,7 +544,7 @@ async function sendChatMessage(userMessage, isRecursive = false) {
             fullUserPrompt += `[${chatHistory[i].role.toUpperCase()}]\n${chatHistory[i].content}\n\n`;
         }
 
-        const aiResponse = await callLLM(systemPrompt, fullUserPrompt, 4000, 0.7);
+        const aiResponse = await callAiLLM(systemPrompt, fullUserPrompt);
 
         if (!aiResponse) throw new Error('LLM 返回为空');
 
@@ -437,7 +582,6 @@ async function sendChatMessage(userMessage, isRecursive = false) {
                     toastr.success('AI 已自动应用设置/工作流修改！', 'ComfyUI AI 助手');
                 }
                 if (actionResult.toolResults) {
-                    // Inject tool result into conversation
                     chatHistory.push({ role: 'system', content: `[TOOL RESULT]\n${actionResult.toolResults}` });
                     triggerRecursion = true;
                 }
@@ -455,8 +599,10 @@ async function sendChatMessage(userMessage, isRecursive = false) {
             appendMessage('ai', rawTextToDisplay, uiHtml);
         }
 
+        // 自动保存会话
+        saveChatSession();
+
         if (triggerRecursion) {
-            // Do NOT enable send button yet, trigger LLM again transparently
             return await sendChatMessage(null, true);
         }
 
@@ -469,10 +615,39 @@ async function sendChatMessage(userMessage, isRecursive = false) {
     }
 }
 
+// ============ 设置面板 UI 辅助函数 ============
+
+function loadAiSettingsToPanel() {
+    const s = getSettings();
+    $('#cg-ai-api-url').val(s.ai_api_url || '');
+    $('#cg-ai-api-key').val(s.ai_api_key || '');
+    $('#cg-ai-model').val(s.ai_model || '');
+    $('#cg-ai-max-tokens').val(s.ai_max_tokens || 4000);
+    $('#cg-ai-temperature').val(s.ai_temperature != null ? s.ai_temperature : 0.7);
+    $('#cg-ai-top-p').val(s.ai_top_p != null ? s.ai_top_p : 1.0);
+    $('#cg-ai-auto-execute').prop('checked', !!s.ai_auto_execute);
+}
+
+function saveAiSettingFromInput(key, value) {
+    const s = getSettings();
+    s[key] = value;
+    saveSettingsDebounced();
+}
+
 /**
  * 初始化 AI 助手弹窗与事件
  */
 export function initAiHelperEvents() {
+    // 恢复上次会话
+    const s = getSettings();
+    if (s.ai_current_session_id && s.ai_chat_sessions?.[s.ai_current_session_id]) {
+        loadChatSession(s.ai_current_session_id);
+    } else {
+        currentSessionId = generateSessionId();
+    }
+
+    // ========= 对话框基本事件 =========
+
     // 绑定开弹窗按钮
     $('#comfyui-gen-workflow-ai-helper').off('click').on('click', function () {
         $('#cg-ai-dialog').css('display', 'flex');
@@ -481,6 +656,7 @@ export function initAiHelperEvents() {
 
     // 关闭弹窗
     $('#cg-ai-dialog-close').off('click').on('click', function () {
+        saveChatSession();
         $('#cg-ai-dialog').hide();
     });
 
@@ -497,6 +673,79 @@ export function initAiHelperEvents() {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             $('#cg-ai-chat-send').click();
+        }
+    });
+
+    // ========= 新建聊天 =========
+    $('#cg-ai-new-chat').off('click').on('click', function () {
+        createNewSession();
+    });
+
+    // ========= 设置面板开关 =========
+    $('#cg-ai-settings-btn').off('click').on('click', function () {
+        loadAiSettingsToPanel();
+        $('#cg-ai-settings-panel').addClass('open');
+    });
+
+    $('#cg-ai-settings-close, #cg-ai-save-settings').off('click').on('click', function () {
+        $('#cg-ai-settings-panel').removeClass('open');
+    });
+
+    // ========= 设置面板 Tab 切换 =========
+    $(document).off('click', '.cg-ai-settings-tab').on('click', '.cg-ai-settings-tab', function () {
+        const tab = $(this).data('ai-stab');
+        $('.cg-ai-settings-tab').removeClass('active');
+        $(this).addClass('active');
+        $('.cg-ai-settings-tab-content').removeClass('active');
+        $(`.cg-ai-settings-tab-content[data-ai-stab-content="${tab}"]`).addClass('active');
+    });
+
+    // ========= 设置项自动保存 =========
+    $('#cg-ai-api-url').off('change').on('change', function () {
+        saveAiSettingFromInput('ai_api_url', $(this).val().trim());
+    });
+    $('#cg-ai-api-key').off('change').on('change', function () {
+        saveAiSettingFromInput('ai_api_key', $(this).val().trim());
+    });
+    $('#cg-ai-model').off('change').on('change', function () {
+        saveAiSettingFromInput('ai_model', $(this).val().trim());
+    });
+    $('#cg-ai-max-tokens').off('change').on('change', function () {
+        saveAiSettingFromInput('ai_max_tokens', parseInt($(this).val()) || 4000);
+    });
+    $('#cg-ai-temperature').off('change').on('change', function () {
+        saveAiSettingFromInput('ai_temperature', parseFloat($(this).val()) || 0.7);
+    });
+    $('#cg-ai-top-p').off('change').on('change', function () {
+        saveAiSettingFromInput('ai_top_p', parseFloat($(this).val()) || 1.0);
+    });
+    $('#cg-ai-auto-execute').off('change').on('change', function () {
+        saveAiSettingFromInput('ai_auto_execute', $(this).prop('checked'));
+    });
+
+    // ========= 模型列表获取 =========
+    $('#cg-ai-fetch-models').off('click').on('click', async function () {
+        const $btn = $(this);
+        const originalHtml = $btn.html();
+        $btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 获取中...').prop('disabled', true);
+        try {
+            const models = await fetchAvailableModels();
+            const $select = $('#cg-ai-model-select');
+            $select.empty().append('<option value="">(选择模型)</option>');
+            models.forEach(m => $select.append(`<option value="${m}">${m}</option>`));
+            toastr.success(`成功获取 ${models.length} 个模型`, 'AI 助手');
+        } catch (e) {
+            toastr.error('获取模型失败: ' + e.message, 'AI 助手');
+        } finally {
+            $btn.html(originalHtml).prop('disabled', false);
+        }
+    });
+
+    // 模型选择联动
+    $('#cg-ai-model-select').off('change').on('change', function () {
+        const selected = $(this).val();
+        if (selected) {
+            $('#cg-ai-model').val(selected).trigger('change');
         }
     });
 }

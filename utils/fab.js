@@ -39,8 +39,12 @@ function createFabElement() {
 
     const settings = extension_settings[extensionName];
     const pos = settings.fab_position || { right: 20, bottom: 80 };
-    fabElement.style.right = pos.right + 'px';
-    fabElement.style.bottom = pos.bottom + 'px';
+
+    // 移动端：确保悬浮球在底部工具栏上方
+    const isMobile = window.innerWidth <= 600;
+    const minBottom = isMobile ? 90 : 0;
+    fabElement.style.right = Math.min(pos.right, window.innerWidth - 60) + 'px';
+    fabElement.style.bottom = Math.max(pos.bottom, minBottom) + 'px';
 
     // 拖拽逻辑
     let startX, startY, startRight, startBottom;

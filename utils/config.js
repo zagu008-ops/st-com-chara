@@ -99,4 +99,15 @@ export const defaultSettings = {
     auto_only_character: true,         // 只对角色消息触发
     auto_user_tags: '',                // 用户手动附加的标签（与 LLM 结合生成）
     auto_llm_system_prompt: '',        // 自定义 LLM 生图 system prompt（空=使用内置默认）
+
+    // === AI 助手独立配置 ===
+    ai_api_url: '',                    // 独立 API 地址（空 = 复用反推配置）
+    ai_api_key: '',                    // 独立 API Key
+    ai_model: '',                      // 独立模型名
+    ai_max_tokens: 4000,               // Max Tokens
+    ai_temperature: 0.7,               // Temperature
+    ai_top_p: 1.0,                     // Top P
+    ai_auto_execute: false,            // 自动执行 AI 命令（不弹确认）
+    ai_chat_sessions: {},              // { sessionId: { messages, title, updatedAt } }
+    ai_current_session_id: '',         // 当前会话 ID
 };

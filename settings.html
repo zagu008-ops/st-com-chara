@@ -599,7 +599,11 @@
 <div id="cg-ai-dialog" class="cg-ai-dialog" style="display: none;">
     <div class="cg-ai-dialog-header">
         <h3><i class="fa-solid fa-robot"></i> AI 配置助手</h3>
-        <span id="cg-ai-dialog-close" class="cg-ai-dialog-close"><i class="fa-solid fa-xmark"></i></span>
+        <div class="cg-ai-header-actions">
+            <span id="cg-ai-new-chat" class="cg-ai-header-btn" title="新建聊天"><i class="fa-solid fa-broom"></i></span>
+            <span id="cg-ai-settings-btn" class="cg-ai-header-btn" title="设置"><i class="fa-solid fa-gear"></i></span>
+            <span id="cg-ai-dialog-close" class="cg-ai-dialog-close"><i class="fa-solid fa-xmark"></i></span>
+        </div>
     </div>
     <div id="cg-ai-chat-body" class="cg-ai-chat-body">
         <div class="cg-ai-msg system-msg">
@@ -616,5 +620,73 @@
     <div id="cg-ai-sys-logs"
         style="max-height: 80px; overflow-y: auto; background: rgba(0,0,0,0.8); color: #2ecc71; font-family: monospace; font-size: 11px; padding: 5px 10px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
         <!-- Logs will appear here -->
+    </div>
+
+    <!-- AI 助手设置面板 (默认隐藏) -->
+    <div id="cg-ai-settings-panel" class="cg-ai-settings-panel">
+        <div class="cg-ai-settings-header">
+            <h4>设置 <small style="font-weight: normal; opacity: 0.7;">(自动保存)</small></h4>
+            <span id="cg-ai-settings-close" class="cg-ai-settings-close"><i class="fa-solid fa-xmark"></i></span>
+        </div>
+        <!-- 分页标签栏 -->
+        <div class="cg-ai-settings-tabs">
+            <button class="cg-ai-settings-tab active" data-ai-stab="api"><i class="fa-solid fa-key"></i> API</button>
+            <button class="cg-ai-settings-tab" data-ai-stab="params"><i class="fa-solid fa-sliders"></i> 参数</button>
+            <button class="cg-ai-settings-tab" data-ai-stab="features"><i class="fa-solid fa-puzzle-piece"></i>
+                功能</button>
+        </div>
+        <div class="cg-ai-settings-body">
+            <!-- ====== Tab: API 配置 ====== -->
+            <div class="cg-ai-settings-tab-content active" data-ai-stab-content="api">
+                <div class="cg-ai-setting-item">
+                    <label for="cg-ai-api-url">API 地址</label>
+                    <input type="text" id="cg-ai-api-url" placeholder="留空复用反推 Tab 的 LLM 配置">
+                    <small>如: https://api.openai.com/v1 或 http://127.0.0.1:11434/v1</small>
+                </div>
+                <div class="cg-ai-setting-item">
+                    <label for="cg-ai-api-key">API Key</label>
+                    <input type="password" id="cg-ai-api-key" placeholder="sk-... (留空复用反推配置)">
+                </div>
+                <div class="cg-ai-setting-item">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <label for="cg-ai-model" style="margin-bottom: 0;">模型名称</label>
+                        <button id="cg-ai-fetch-models" class="cg-ai-mini-btn" title="获取模型列表"><i
+                                class="fa-solid fa-sync"></i> 获取可用模型</button>
+                    </div>
+                    <select id="cg-ai-model-select" style="width: 100%; margin-bottom: 6px;">
+                        <option value="">(请先获取并选择模型)</option>
+                    </select>
+                    <input type="text" id="cg-ai-model" placeholder="支持上面自动选择或手动输入 (如: gpt-4o)">
+                </div>
+            </div>
+
+            <!-- ====== Tab: 模型参数 ====== -->
+            <div class="cg-ai-settings-tab-content" data-ai-stab-content="params">
+                <div class="cg-ai-setting-item">
+                    <label for="cg-ai-max-tokens">Max Tokens (最大返回字符)</label>
+                    <input type="number" id="cg-ai-max-tokens" placeholder="4000" min="1" step="1">
+                </div>
+                <div class="cg-ai-setting-item">
+                    <label for="cg-ai-temperature">Temperature (随机性, 0-2)</label>
+                    <input type="number" id="cg-ai-temperature" placeholder="0.7" min="0" max="2" step="0.05">
+                </div>
+                <div class="cg-ai-setting-item">
+                    <label for="cg-ai-top-p">Top P (采样阈值, 0-1)</label>
+                    <input type="number" id="cg-ai-top-p" placeholder="1.0" min="0" max="1" step="0.05">
+                </div>
+            </div>
+
+            <!-- ====== Tab: 功能开关 ====== -->
+            <div class="cg-ai-settings-tab-content" data-ai-stab-content="features">
+                <div class="cg-ai-setting-item checkbox">
+                    <input type="checkbox" id="cg-ai-auto-execute">
+                    <label for="cg-ai-auto-execute">命令主动执行 (自动执行 AI 调用的系统命令，不弹确认)</label>
+                </div>
+            </div>
+
+            <!-- 关闭按钮 -->
+            <button id="cg-ai-save-settings" class="cg-ai-save-btn" style="margin-top: 20px;">关闭设置面板</button>
+        </div>
     </div>
 </div>
