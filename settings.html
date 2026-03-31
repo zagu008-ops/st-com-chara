@@ -4,7 +4,7 @@
         <div class="comfyui-gen-modal-content">
             <!-- 头部 -->
             <div class="comfyui-gen-modal-header">
-                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.7.0</span>
+                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.8.0</span>
                 </h2>
                 <div class="comfyui-gen-header-actions">
                     <button id="comfyui-gen-update-btn" class="comfyui-gen-btn secondary" title="从 GitHub 拉取最新代码">
@@ -24,6 +24,7 @@
                 <button class="comfyui-gen-tab" data-tab="outfits"><i class="fa-solid fa-shirt"></i> 服装管理</button>
                 <button class="comfyui-gen-tab" data-tab="characters"><i class="fa-solid fa-user"></i> 角色管理</button>
                 <button class="comfyui-gen-tab" data-tab="imagecache"><i class="fa-solid fa-images"></i> 图片缓存</button>
+                <button class="comfyui-gen-tab" data-tab="novel"><i class="fa-solid fa-book"></i> 小说生成</button>
                 <button class="comfyui-gen-tab" data-tab="logs"><i class="fa-solid fa-terminal"></i> 日志</button>
             </div>
 
@@ -560,6 +561,61 @@
                         </div>
                         <div style="margin-top: 12px; font-size: 0.85em; opacity: 0.5;">
                             缓存仅存在于当前浏览器会话，刷新页面后清空。请及时下载保存您需要的图片。
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 小说生成 ========== -->
+                <div class="comfyui-gen-panel" data-panel="novel">
+                    <div class="comfyui-gen-section">
+                        <h3 style="color: #9b59b6;"><i class="fa-solid fa-book"></i> AI 小说生成</h3>
+                        <small style="color:var(--cg-text-muted); display:block; margin-bottom:12px;">使用 AI
+                            辅助生成小说大纲与章节走势。可以在聊天框使用 Slash Command 触发，或者在此测试。</small>
+                        <div class="comfyui-gen-field-grid">
+                            <div class="comfyui-gen-field">
+                                <label for="cg-novel-topic">主题</label>
+                                <input type="text" id="cg-novel-topic" placeholder="例如：赛博朋克下的修仙狂潮" />
+                            </div>
+                            <div class="comfyui-gen-field">
+                                <label for="cg-novel-genre">类型</label>
+                                <input type="text" id="cg-novel-genre" placeholder="例如：科幻/修仙/爽文" />
+                            </div>
+                            <div class="comfyui-gen-field">
+                                <label for="cg-novel-chapters">总章数</label>
+                                <input type="number" id="cg-novel-chapters" value="100" />
+                            </div>
+                            <div class="comfyui-gen-field">
+                                <label for="cg-novel-words">每章字数</label>
+                                <input type="number" id="cg-novel-words" value="2000" />
+                            </div>
+                        </div>
+                        <div class="comfyui-gen-field" style="margin-top: 10px;">
+                            <label for="cg-novel-guidance">内容指导 (可选补充细节)</label>
+                            <textarea id="cg-novel-guidance" rows="2" placeholder="填写特别的角色要求或剧情偏好..."></textarea>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 15px;">
+                            <button id="cg-novel-gen-outline" class="comfyui-gen-btn primary"><i
+                                    class="fa-solid fa-pen-nib"></i> 生成全局大纲</button>
+                        </div>
+                    </div>
+
+                    <div class="comfyui-gen-section">
+                        <h3 style="color: #9b59b6;">大纲结果 / 当前世界观</h3>
+                        <div class="comfyui-gen-field">
+                            <label>核心种子</label>
+                            <textarea id="cg-novel-core-seed" rows="2" readonly></textarea>
+                        </div>
+                        <div class="comfyui-gen-field">
+                            <label>角色设定</label>
+                            <textarea id="cg-novel-characters" rows="4" readonly></textarea>
+                        </div>
+                        <div class="comfyui-gen-field">
+                            <label>世界观</label>
+                            <textarea id="cg-novel-world" rows="4" readonly></textarea>
+                        </div>
+                        <div class="comfyui-gen-field">
+                            <label>情节架构</label>
+                            <textarea id="cg-novel-plot" rows="4" readonly></textarea>
                         </div>
                     </div>
                 </div>

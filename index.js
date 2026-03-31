@@ -19,6 +19,8 @@ import { initAiHelperEvents } from './utils/workflowAiHelper.js?v=2';
 import { addImageToCache, initImageCacheEvents } from './utils/imageCache.js';
 import { addLog, addTask, updateTask, initLogEvents } from './utils/logger.js';
 import { initChatButtons } from './utils/chatButtons.js';
+import { generateGlobalOutline, generateChapterTrend } from './utils/novelAiHelper.js';
+import { SlashCommandParser } from '../../../../slash-commands/SlashCommandParser.js';
 
 // ============ 初始化 ============
 
@@ -61,6 +63,9 @@ async function init() {
 
     // 初始化选中文本生图按钮
     initChatButtons();
+
+    // 初始化小说生成事件与命令
+    initNovelUIAndCommands();
 
     console.log('[ComfyUI Gen] 插件初始化完成');
 }
@@ -1372,3 +1377,128 @@ function loadWorkflowPreset(id) {
 // ============ 提示词预设迁移启动 ============
 
 init();
+
+// ============ 小说生成事件与 Slash Commands ============
+function initNovelUIAndCommands() {
+    // UI Event Binding
+    $('#cg-novel-gen-outline').on('click', async function () {
+        const topic = $('#cg-novel-topic').val().trim() || '未命名小说';
+        const genre = $('#cg-novel-genre').val().trim() || '奇幻';
+        const chapters = parseInt($('#cg-novel-chapters').val()) || 100;
+        const words = parseInt($('#cg-novel-words').val()) || 2000;
+        const guidance = $('#cg-novel-guidance').val().trim();
+
+        const btn = $(this);
+        const originalText = btn.html();
+        btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 生成中...').prop('disabled', true);
+
+        try {
+            toastr.info('开始生成大纲，请耐心等待...');
+            const result = await generateGlobalOutline(topic, genre, chapters, words, guidance, (status) => {
+                toastr.success(status);
+            });
+
+            $('#cg-novel-core-seed').val(result.coreSeed);
+            $('#cg-novel-characters').val(result.characters);
+            $('#cg-novel-world').val(result.world);
+            $('#cg-novel-plot').val(result.plot);
+
+            // 保存到 settings
+            extension_settings[extensionName].novel_topic = topic;
+            extension_settings[extensionName].novel_genre = genre;
+            extension_settings[extensionName].novel_chapters = chapters;
+            extension_settings[extensionName].novel_words = words;
+            extension_settings[extensionName].novel_core_seed = result.coreSeed;
+            extension_settings[extensionName].novel_characters = result.characters;
+            extension_settings[extensionName].novel_world = result.world;
+            extension_settings[extensionName].novel_plot = result.plot;
+            saveSettingsDebounced();
+
+            toastr.success('小说大纲生成完毕！');
+        } catch (e) {
+            toastr.error('大纲生成失败: ' + e.message);
+            console.error(e);
+        } finally {
+            btn.html(originalText).prop('disabled', false);
+        }
+    });
+
+    // 监听输入同步到 settings
+    ['topic', 'genre', 'chapters', 'words', 'guidance', 'core-seed', 'characters', 'world', 'plot'].forEach(key => {
+        $(`#cg-novel-${key}`).on('input change', function () {
+            extension_settings[extensionName][`novel_${key.replace('-', '_')}`] = $(this).val();
+            saveSettingsDebounced();
+        });
+    });
+
+    // 初始加载
+    const s = extension_settings[extensionName];
+    if (s.novel_topic) $('#cg-novel-topic').val(s.novel_topic);
+    if (s.novel_genre) $('#cg-novel-genre').val(s.novel_genre);
+    if (s.novel_chapters) $('#cg-novel-chapters').val(s.novel_chapters);
+    if (s.novel_words) $('#cg-novel-words').val(s.novel_words);
+    if (s.novel_guidance) $('#cg-novel-guidance').val(s.novel_guidance);
+    if (s.novel_core_seed) $('#cg-novel-core-seed').val(s.novel_core_seed);
+    if (s.novel_characters) $('#cg-novel-characters').val(s.novel_characters);
+    if (s.novel_world) $('#cg-novel-world').val(s.novel_world);
+    if (s.novel_plot) $('#cg-novel-plot').val(s.novel_plot);
+
+    // 注册 Slash Commands
+    if (typeof SlashCommandParser !== 'undefined') {
+        SlashCommandParser.addCommandObject(SlashCommandParser.parseCommandObject('{"/novel-outline":{"helpString":"生成小说的大纲，包含设定和核心走势。","/novel-trend":{"helpString":"基于目前上下文推演后续 5 章走势，需提供章节号起点，如：/novel-trend 11","/novel-inject":{"helpString":"将保存的小说人设与世界观注入到下次对话的 System Prompt 中"}}}').commands['/novel-outline'], async (args) => {
+            toastr.info('请在设置面板 -> 小说生成 -> 生成全局大纲，以获取更稳定的体验和可视化效果。');
+            return "";
+        });
+
+        SlashCommandParser.addCommandObject({
+            command: '/novel-trend',
+            aliases: [],
+            helpString: '基于目前线索推演后续 N 章走势，用法: /novel-trend [起止章节如 10-15]',
+            execute: async (args, value) => {
+                const s = extension_settings[extensionName];
+                if (!s.novel_plot) {
+                    toastr.warning('请先在"小说生成"面板中生成全局规划大纲！');
+                    return '';
+                }
+                const range = value || '1-5';
+                const parts = range.split('-');
+                const start = parseInt(parts[0]) || 1;
+                const end = parseInt(parts[1]) || (start + 4);
+
+                try {
+                    toastr.info(`正在生成第 ${start} - ${end} 章的走势，请等待...`);
+                    // 在此处提取当前酒馆聊天记录作为 content 
+                    // 通常使用 context.chat 提取前面的一定对话，为了简单起见传入空提示，交由 LLM 根据 Plot 延伸
+                    const chatHistory = "暂无具体的聊天上下文传入模型，仅根据世界观与大纲推演...";
+                    const result = await generateChapterTrend(s.novel_guidance || '', s.novel_plot, chatHistory, parseInt(s.novel_chapters) || 100, start, end);
+                    // 可以使用系统的 addLog 或插入到当前聊天框中
+                    toastr.success('章节走势生成成功！');
+                    return result; // returning text will output to chat if it's a valid macro or use sendSystemMessage 
+                } catch (e) {
+                    toastr.error('生成章节走势失败：' + e.message);
+                    return '';
+                }
+            }
+        });
+
+        SlashCommandParser.addCommandObject({
+            command: '/novel-inject',
+            aliases: [],
+            helpString: '将保存的小说人设与世界观注入到当前聊天的上下文中',
+            execute: async () => {
+                const s = extension_settings[extensionName];
+                if (!s.novel_world) {
+                    toastr.warning('没有可注入的世界观！');
+                    return '';
+                }
+                const payload = `[小说世界观设定]
+${s.novel_world}
+[角色体系设定]
+${s.novel_characters}
+`;
+                toastr.success('已提取世界观设定。您可以将其复制为作者注(Author Note)或 System Prompt。');
+                return payload;
+            }
+        });
+    }
+}
