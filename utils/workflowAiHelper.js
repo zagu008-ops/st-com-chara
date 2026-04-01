@@ -552,7 +552,7 @@ async function sendChatMessage(userMessage, isRecursive = false) {
 
         // 提取 <SystemQuery> 或者 ```json 动作块
         let jsonText = null;
-        let systemQueryMatch = aiResponse.match(/&lt;SystemQuery&gt;([\s\S]*?)(?:&lt;\/SystemQuery&gt;|$)/i) || aiResponse.match(/<SystemQuery>([\s\S]*?)(?:<\/SystemQuery>|$)/i);
+        let systemQueryMatch = aiResponse.match(/<SystemQuery>([\s\S]*?)(?:<\/SystemQuery>|$)/i);
 
         if (systemQueryMatch) {
             jsonText = systemQueryMatch[1];

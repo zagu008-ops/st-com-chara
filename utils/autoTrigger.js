@@ -71,16 +71,12 @@ async function onMessageReceived(messageIndex) {
 
     const s = getSettings();
 
-    // 检查总开关
-    if (!s.enabled) {
-        console.log(`${LOG_PREFIX} ❌ 插件未启用 (enabled=${s.enabled})，跳过`);
-        return;
-    }
+    // 检查自动生图开关
     if (!s.auto_generate_enabled) {
         console.log(`${LOG_PREFIX} ❌ 自动生图未启用 (auto_generate_enabled=${s.auto_generate_enabled})，跳过`);
         return;
     }
-    console.log(`${LOG_PREFIX} ✅ 开关检查通过 (enabled=${s.enabled}, auto_generate_enabled=${s.auto_generate_enabled})`);
+    console.log(`${LOG_PREFIX} ✅ 开关检查通过 (auto_generate_enabled=${s.auto_generate_enabled})`);
 
     // 防重复触发
     if (isGenerating) {
@@ -142,14 +138,16 @@ async function onMessageReceived(messageIndex) {
             const userTags = s.auto_user_tags || '';
             console.log(`${LOG_PREFIX} [LLM模式] 用户附加标签: ${userTags || '(无)'}`);
 
-            dynamicPrompt = await generateImagePrompt(userTags);
+            const tagsArray = await generateImagePrompt(userTags);
 
-            if (!dynamicPrompt) {
+            if (!tagsArray || tagsArray.length === 0) {
                 console.log(`${LOG_PREFIX} [LLM模式] ❌ LLM 未返回有效提示词`);
                 showToast('LLM 未返回有效提示词', 'error');
                 return;
             }
-            console.log(`${LOG_PREFIX} [LLM模式] ✅ LLM 生成的最终 tags: ${dynamicPrompt.substring(0, 200)}`);
+            // generateImagePrompt 返回 Array<string>，拼接为单个提示词字符串
+            dynamicPrompt = tagsArray.join(', ');
+            console.log(`${LOG_PREFIX} [LLM模式] ✅ LLM 生成的最终 tags (${tagsArray.length}组): ${dynamicPrompt.substring(0, 200)}`);
         } else {
             console.log(`${LOG_PREFIX} ❌ 未知触发模式: '${s.auto_trigger_mode}'，跳过`);
             return;

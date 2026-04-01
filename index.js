@@ -1511,9 +1511,14 @@ function initNovelUIAndCommands() {
 
     // 注册 Slash Commands
     if (typeof SlashCommandParser !== 'undefined') {
-        SlashCommandParser.addCommandObject(SlashCommandParser.parseCommandObject('{"/novel-outline":{"helpString":"生成小说的大纲，包含设定和核心走势。","/novel-trend":{"helpString":"基于目前上下文推演后续 5 章走势，需提供章节号起点，如：/novel-trend 11","/novel-inject":{"helpString":"将保存的小说人设与世界观注入到下次对话的 System Prompt 中"}}}').commands['/novel-outline'], async (args) => {
-            toastr.info('请在设置面板 -> 小说生成 -> 生成全局大纲，以获取更稳定的体验和可视化效果。');
-            return "";
+        SlashCommandParser.addCommandObject({
+            command: '/novel-outline',
+            aliases: [],
+            helpString: '生成小说的大纲，包含设定和核心走势。请在设置面板中操作以获得最佳体验。',
+            execute: async (args, value) => {
+                toastr.info('请在设置面板 -> 小说生成 -> 生成全局大纲，以获取更稳定的体验和可视化效果。');
+                return "";
+            }
         });
 
         SlashCommandParser.addCommandObject({

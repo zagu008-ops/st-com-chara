@@ -71,6 +71,11 @@ export function buildPayload(dynamicPrompt = '', extraNegative = '') {
         promptParts.push(dynamicPrompt.trim());
     }
 
+    // 末尾固定提示词（在所有其他标签之后追加）
+    if (settings.fixed_positive_prompt_end) {
+        promptParts.push(settings.fixed_positive_prompt_end.trim());
+    }
+
     params.prompt = deduplicateTags(promptParts.join(', '));
 
     // === 负面提示词合并 ===

@@ -101,6 +101,10 @@ export const defaultSettings = {
     auto_user_tags: '',                // 用户手动附加的标签（与 LLM 结合生成）
     auto_llm_system_prompt: '',        // 自定义 LLM 生图 system prompt（空=使用内置默认）
 
+    // 图片标签提取配置（与参考插件对齐）
+    image_start_tag: 'image###',       // 图片标签起始标记
+    image_end_tag: '###',              // 图片标签结束标记
+
     // === AI 助手独立配置 ===
     ai_api_url: '',                    // 独立 API 地址（空 = 复用反推配置）
     ai_api_key: '',                    // 独立 API Key

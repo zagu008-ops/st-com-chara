@@ -86,6 +86,15 @@ function buildSystemPrompt(character, outfit) {
         console.log(`${LOG_PREFIX} 无激活服装预设`);
     }
 
+    // 注入宏指令（与参考插件对齐：让 LLM 用宏代替角色/服装特征，后续由 replaceMacros 统一替换）
+    if (character || outfit) {
+        let macrosInfo = `\n\n<可用宏指令>\n你必须在输出中使用以下宏来代表固定特征，不要自己生成这些特征的标签：\n`;
+        if (character) macrosInfo += `- $character$ （代表角色 ${character.name || '未知'} 的基础外观特征）\n`;
+        if (outfit) macrosInfo += `- $outfit$ （代表当前服装 ${outfit.name || '未知'}）\n`;
+        macrosInfo += `</可用宏指令>`;
+        systemPrompt += macrosInfo;
+    }
+
     console.log(`${LOG_PREFIX} System prompt 长度: ${systemPrompt.length} 字符`);
     return systemPrompt;
 }
@@ -173,6 +182,7 @@ export async function callLLM(systemPrompt, userPrompt, maxTokens = 500, tempera
         method: 'POST',
         headers: headers,
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(60000),
     });
     const elapsed = Date.now() - startTime;
 
@@ -192,49 +202,176 @@ export async function callLLM(systemPrompt, userPrompt, maxTokens = 500, tempera
 }
 
 /**
- * 解析 LLM 返回的图片标签
- * 支持: 多组 image###tags### 格式
+ * 获取当前配置的图片标签起止标记
+ * @returns {{ startTag: string, endTag: string }}
+ */
+function getImageTags() {
+    const s = getSettings();
+    const startTag = s?.image_start_tag || 'image###';
+    const endTag = s?.image_end_tag || '###';
+    return { startTag, endTag };
+}
+
+/**
+ * 解析 LLM 返回的图片标签（完全复刻参考插件 extractImagePrompt 逻辑）
+ *
+ * 解析优先级：
+ * 1. 尝试 <images><image>...</image></images> 两层 XML 包裹
+ *    - 在每个 <image> 块内，用 startTag/endTag 正则提取标签
+ *    - 如果无 startTag 匹配，回退使用整个 <image> 内容
+ * 2. 回退：直接用 startTag/endTag 正则在全文中匹配（legacy 模式）
+ *
  * @param {string} llmResponse
  * @returns {Array<string>} 清理后的 danbooru tags 数组
  */
 function parseImageTags(llmResponse) {
-    let text = llmResponse || '';
+    if (!llmResponse || typeof llmResponse !== 'string') return [];
 
-    // 移除 markdown 代码块
-    text = text.replace(/```[\s\S]*?```/g, '');
+    const { startTag, endTag } = getImageTags();
 
-    const regex = /image###([\s\S]*?)###/gi;
-    const matches = [];
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-        let tagsStr = match[1].trim();
-        tagsStr = tagsStr.replace(/\n+/g, ', ')
+    // 第一步：移除 <thinking> 标签（在所有解析之前）
+    let text = llmResponse.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
+
+    // ===== 策略1：尝试 <images>...</images> 两层 XML 包裹 =====
+    const imagesBlockRegex = /<images>([\s\S]*?)<\/images>/i;
+    const imagesMatch = text.match(imagesBlockRegex);
+
+    if (imagesMatch && imagesMatch[1]) {
+        const imagesContent = imagesMatch[1];
+        console.log(`${LOG_PREFIX} 检测到 <images> 块，内容长度=${imagesContent.length}`);
+
+        // 在 <images> 块内，逐个提取 <image>...</image>
+        const imageBlockRegex = /<image>([\s\S]*?)<\/image>/gi;
+        const results = [];
+        let imageMatch;
+
+        while ((imageMatch = imageBlockRegex.exec(imagesContent)) !== null) {
+            const imageContent = imageMatch[1];
+
+            // 在每个 <image> 块内，尝试用 startTag/endTag 正则提取
+            const escapedStart = startTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const escapedEnd = endTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const tagRegex = new RegExp(escapedStart + '([\\s\\S]*?)' + escapedEnd);
+            const tagMatch = imageContent.match(tagRegex);
+
+            if (tagMatch && tagMatch[1]) {
+                // 成功匹配 startTag...endTag
+                const extracted = tagMatch[1].trim();
+                if (extracted) {
+                    results.push(extracted);
+                    console.log(`${LOG_PREFIX} [<image>内] 提取到 ${startTag}...${endTag} 标签: ${extracted.substring(0, 80)}...`);
+                }
+            } else {
+                // 回退：使用整个 <image> 块的内容
+                const trimmed = imageContent.trim();
+                if (trimmed) {
+                    results.push(trimmed);
+                    console.log(`${LOG_PREFIX} [<image>内] 未匹配 startTag，使用原始内容: ${trimmed.substring(0, 80)}...`);
+                }
+            }
+        }
+
+        if (results.length > 0) {
+            console.log(`${LOG_PREFIX} 从 <images> 块中解析到 ${results.length} 组标签`);
+            // 如果只有一组且有额外的纯文本 fallback，仍然返回数组
+            return results.length === 1 ? results : results;
+        }
+
+        // <images> 块存在但没有匹配到 <image> 子块，尝试取整个 <images> 内容作为 fallback
+        const fallbackTrimmed = imagesContent.trim();
+        if (fallbackTrimmed) {
+            console.log(`${LOG_PREFIX} <images> 内无 <image> 子块，使用整体内容作为 fallback`);
+            return [fallbackTrimmed];
+        }
+    }
+
+    // ===== 策略2（Legacy 回退）：直接在全文中用 startTag/endTag 正则匹配 =====
+    const escapedStart = startTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedEnd = endTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const legacyRegex = new RegExp(escapedStart + '([\\s\\S]*?)' + escapedEnd, 'gi');
+    const legacyResults = [];
+    let legacyMatch;
+
+    while ((legacyMatch = legacyRegex.exec(text)) !== null) {
+        let tagsStr = legacyMatch[1].trim();
+        // 清理：换行转逗号，多余空白，重复逗号
+        tagsStr = tagsStr
+            .replace(/\n+/g, ', ')
             .replace(/\s{2,}/g, ' ')
             .replace(/,\s*,/g, ',')
             .replace(/^[\s,]+|[\s,]+$/g, '')
             .trim();
         if (tagsStr.length > 0) {
-            matches.push(tagsStr);
+            legacyResults.push(tagsStr);
         }
     }
 
-    if (matches.length > 0) {
-        console.log(`${LOG_PREFIX} 解析到 ${matches.length} 组带 image### 的 tags`);
-        return matches;
+    if (legacyResults.length > 0) {
+        console.log(`${LOG_PREFIX} [Legacy] 使用 ${startTag}...${endTag} 正则解析到 ${legacyResults.length} 组 tags`);
+        return legacyResults;
     }
 
-    // 回退机制：如果没有使用 image### 格式，直接解析全部
-    text = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
-    const imageMatch = text.match(/<images?>([\s\S]*?)<\/images?>/i);
-    if (imageMatch) text = imageMatch[1];
-
-    text = text.replace(/\n+/g, ', ')
+    // ===== 最终回退：取全部内容 =====
+    console.log(`${LOG_PREFIX} 未检测到结构化标签，使用全文 fallback`);
+    text = text
+        .replace(/```[\s\S]*?```/g, '')  // 移除 markdown 代码块
+        .replace(/\n+/g, ', ')
         .replace(/\s{2,}/g, ' ')
         .replace(/,\s*,/g, ',')
         .replace(/^[\s,]+|[\s,]+$/g, '')
         .trim();
 
     return text ? [text] : [];
+}
+
+/**
+ * 统一宏替换函数（与参考插件对齐）
+ * 将 $character$ 替换为角色预设的 positivePrompt
+ * 将 $outfit$ 替换为服装预设的 positivePrompt
+ * @param {Array<string>} tagsArray - 解析后的 tags 数组
+ * @param {object|null} character - 角色预设
+ * @param {object|null} outfit - 服装预设
+ * @returns {Array<string>} 宏替换后的 tags 数组
+ */
+function replaceMacros(tagsArray, character, outfit) {
+    if (!tagsArray || tagsArray.length === 0) return tagsArray;
+
+    let macroCount = 0;
+
+    const result = tagsArray.map(tags => {
+        let processed = tags;
+
+        // 替换角色宏
+        if (processed.includes('$character$')) {
+            macroCount++;
+            if (character && character.positivePrompt) {
+                processed = processed.replace(/\$character\$/g, character.positivePrompt);
+            } else {
+                processed = processed.replace(/\$character\$/g, '');
+            }
+        }
+
+        // 替换服装宏
+        if (processed.includes('$outfit$')) {
+            macroCount++;
+            if (outfit && outfit.positivePrompt) {
+                processed = processed.replace(/\$outfit\$/g, outfit.positivePrompt);
+            } else {
+                processed = processed.replace(/\$outfit\$/g, '');
+            }
+        }
+
+        // 清理多余逗号
+        return processed.replace(/,\s*,/g, ',').replace(/^[\s,]+|[\s,]+$/g, '');
+    });
+
+    if (macroCount > 0) {
+        console.log(`${LOG_PREFIX} 宏替换完成: 共替换了 ${macroCount} 处 $character$/$outfit$ 宏`);
+    } else {
+        console.log(`${LOG_PREFIX} 未检测到宏占位符 ($character$/$outfit$)，tags 原样返回`);
+    }
+
+    return result;
 }
 
 /**
@@ -266,7 +403,11 @@ export async function generateImagePrompt(userTags = '') {
     const llmResponse = await callLLM(systemPrompt, userPrompt);
 
     // 解析结果
-    const tags = parseImageTags(llmResponse);
+    let tags = parseImageTags(llmResponse);
+
+    // 宏替换（与参考插件对齐）
+    tags = replaceMacros(tags, character, outfit);
+
     console.log(`${LOG_PREFIX} ===== generateImagePrompt 完成 =====`);
     return tags;
 }
@@ -314,24 +455,8 @@ ${text}
     // 解析结果并替换宏（支持多个插图 tags）
     let tagsArray = parseImageTags(llmResponse);
 
-    tagsArray = tagsArray.map(tags => {
-        // 替换角色宏
-        if (character && character.positivePrompt) {
-            tags = tags.replace(/\$character\$/g, character.positivePrompt);
-        } else {
-            tags = tags.replace(/\$character\$/g, ""); // 清除未使用的宏
-        }
-
-        // 替换服装宏
-        if (outfit && outfit.positivePrompt) {
-            tags = tags.replace(/\$outfit\$/g, outfit.positivePrompt);
-        } else {
-            tags = tags.replace(/\$outfit\$/g, ""); // 清除未使用的宏
-        }
-
-        // 清理可能产生的多余逗号
-        return tags.replace(/,\s*,/g, ',').replace(/^[\s,]+|[\s,]+$/g, '');
-    });
+    // 统一宏替换
+    tagsArray = replaceMacros(tagsArray, character, outfit);
 
     console.log(`${LOG_PREFIX} 最终生成 ${tagsArray.length} 个合成 Tags 列表`);
     console.log(`${LOG_PREFIX} ===== generateImagePromptFromText 完成 =====`);
@@ -399,8 +524,14 @@ const SCENE_ANALYSIS_SYSTEM_PROMPT = `你是一个专业的「视觉场景分析
 
 ## 输出规则
 
-1. **绝对强制的外层格式：** 你**必须**为文本切分出 3 到 5 个最具画面感的插图瞬间。对于每个瞬间，你必须输出唯一的 \`image###\` 作为开始，\`###\` 作为结束！
-例如：\`image###1girl, blush, $character$###\`。
+1. **绝对强制的外层格式：** 你**必须**为文本切分出 3 到 5 个最具画面感的插图瞬间。对于每个瞬间，你必须使用 \`<images>\` 和 \`<image>\` XML 包裹，内部使用 \`image###\` 作为开始，\`###\` 作为结束！
+格式如下：
+\`\`\`
+<images>
+<image>image###标签列表###</image>
+<image>image###标签列表###</image>
+</images>
+\`\`\`
 除了这些包裹内容的标签外，不要输出任何其他的分析或换行。
 
 2. **标签规范**：**只输出**逗号分隔的英文 danbooru-style 标签。
@@ -409,12 +540,16 @@ const SCENE_ANALYSIS_SYSTEM_PROMPT = `你是一个专业的「视觉场景分析
 5. 请使用下划线连接复杂词组（如 \`deep_v_neckline\`, \`parted_lips\`）。
 
 ## 示例输出格式
-image###1girl, solo, $character$, $outfit$, standing, moonlight, dramatic lighting, teary eyes, pale skin, flushed cheeks, dim lighting, from front, cinematic composition, dark atmosphere, masterpiece, best quality###
-image###1girl, close-up, $character$, $outfit$, emotional, clenched fists, tense pose, indoor, spotlight, deep shadows, beautiful detailed eyes, masterpiece, best quality###
-image###1girl, upper_body, $character$, torn clothes, bare shoulders, looking down, panting, sweating, dark alley, rain, masterpiece, best quality###
+<images>
+<image>image###1girl, solo, $character$, $outfit$, standing, moonlight, dramatic lighting, teary eyes, pale skin, flushed cheeks, dim lighting, from front, cinematic composition, dark atmosphere, masterpiece, best quality###</image>
+<image>image###1girl, close-up, $character$, $outfit$, emotional, clenched fists, tense pose, indoor, spotlight, deep shadows, beautiful detailed eyes, masterpiece, best quality###</image>
+<image>image###1girl, upper_body, $character$, torn clothes, bare shoulders, looking down, panting, sweating, dark alley, rain, masterpiece, best quality###</image>
+</images>
 
 输入文本: "外套顺着圆润的肩头滑落到地毯上，发出沉闷的响声。她缓缓解开了西装腰间的扣子。"
 
 输出:
-image###1girl, solo, $character$, $outfit$, jacket falling off, bare shoulders, round shoulders, unbuttoning, standing, carpet, indoor, dim room, sensual atmosphere, from front, upper body, looking down, concentrated expression, elegant hands, fingers on button, clothes sliding off, soft lighting, warm tones, masterpiece, best quality, highly detailed###`;
+<images>
+<image>image###1girl, solo, $character$, $outfit$, jacket falling off, bare shoulders, round shoulders, unbuttoning, standing, carpet, indoor, dim room, sensual atmosphere, from front, upper body, looking down, concentrated expression, elegant hands, fingers on button, clothes sliding off, soft lighting, warm tones, masterpiece, best quality, highly detailed###</image>
+</images>`;
 
