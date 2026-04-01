@@ -54,9 +54,25 @@ export async function callNovelLLM(systemPrompt, userPrompt) {
 }
 
 // -------------------------------------------------------------
-// Prompts (Translated from ainovel)
+// Prompts (Translated from ainovel + Character Interactive integration)
 // -------------------------------------------------------------
 export const NovelPrompts = {
+    generateInitialOptions(characterInfo) {
+        return `基于以下跑团角色预设：
+角色名称：${characterInfo.name || '未知'}
+角色设定：${characterInfo.description || '无'}
+性格特征：${characterInfo.personality || '无'}
+当前场景片段：${characterInfo.scenario || '无'}
+
+请作为专业的小说编剧，为该角色与用户的后续互动，设计 3 个截然不同的小说开局/发展路线（选项 A、B、C）。
+每个选项需包含：
+1. 路线名称（简短有吸引力）
+2. 核心冲突与剧情悬念
+3. 世界观延伸（无需改动原有设定，而是往外扩写隐藏背景）
+
+请直接用纯文本输出，分为三个区块，以 "选项A："、"选项B："、"选项C：" 开头，不要包含多余的客套话。`;
+    },
+
     coreSeed(topic, genre, numChapters, wordNumber) {
         return `作为专业作家，请用"雪花写作法"第一步构建故事核心：
 主题：${topic}
@@ -206,6 +222,14 @@ ${chapterList}
 // -------------------------------------------------------------
 // APIs
 // -------------------------------------------------------------
+
+/**
+ * 基于角色设定生成初始小说分支选项
+ */
+export async function generateInteractiveOptions(characterInfo) {
+    const prompt = NovelPrompts.generateInitialOptions(characterInfo);
+    return await callNovelLLM('你是一个专业的小说架构师和跑团剧情策划。', prompt);
+}
 
 /**
  * 串行执行完整小说的大纲生成

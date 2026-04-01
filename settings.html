@@ -4,7 +4,7 @@
         <div class="comfyui-gen-modal-content">
             <!-- 头部 -->
             <div class="comfyui-gen-modal-header">
-                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.8.1</span>
+                <h2><i class="fa-solid fa-paintbrush"></i> ComfyUI Gen <span class="comfyui-gen-version">v1.9.0</span>
                 </h2>
                 <div class="comfyui-gen-header-actions">
                     <button id="comfyui-gen-update-btn" class="comfyui-gen-btn secondary" title="从 GitHub 拉取最新代码">
@@ -590,10 +590,19 @@
                             </div>
                         </div>
                         <div class="comfyui-gen-field" style="margin-top: 10px;">
-                            <label for="cg-novel-guidance">内容指导 (可选补充细节)</label>
-                            <textarea id="cg-novel-guidance" rows="2" placeholder="填写特别的角色要求或剧情偏好..."></textarea>
+                            <label for="cg-novel-guidance">内容指导 / 剧情分支选项 (在此输入或选填)</label>
+                            <textarea id="cg-novel-guidance" rows="3"
+                                placeholder="填写特别的角色要求或剧情偏好，或者点击下方生成分支，将选中的分支贴入此处..."></textarea>
+                        </div>
+                        <div class="comfyui-gen-field toggle-field"
+                            style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                            <label for="cg-novel-injection-enabled" style="margin: 0;"><strong>启用小说推进模式</strong>
+                                (自动将下方大纲及走势注入到当前聊天上下文)</label>
+                            <input type="checkbox" id="cg-novel-injection-enabled" />
                         </div>
                         <div style="display: flex; gap: 8px; margin-top: 15px;">
+                            <button id="cg-novel-gen-options" class="comfyui-gen-btn secondary"
+                                title="读取当前聊天角色并生成小说开局分支"><i class="fa-solid fa-dice"></i> 读取角色并生成分支选项</button>
                             <button id="cg-novel-gen-outline" class="comfyui-gen-btn primary"><i
                                     class="fa-solid fa-pen-nib"></i> 生成全局大纲</button>
                         </div>

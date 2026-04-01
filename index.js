@@ -3,7 +3,7 @@
  * 主入口文件：初始化、设置面板绑定、事件注册
  */
 
-import { extension_settings } from '../../../extensions.js';
+import { extension_settings, getContext } from '../../../extensions.js';
 import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
 import { extensionName, extensionFolderPath, defaultSettings } from './utils/config.js';
 import { buildPayload, sendToComfyUI } from './utils/comfyui.js';
@@ -19,7 +19,7 @@ import { initAiHelperEvents } from './utils/workflowAiHelper.js?v=2';
 import { addImageToCache, initImageCacheEvents } from './utils/imageCache.js';
 import { addLog, addTask, updateTask, initLogEvents } from './utils/logger.js';
 import { initChatButtons } from './utils/chatButtons.js';
-import { generateGlobalOutline, generateChapterTrend } from './utils/novelAiHelper.js';
+import { generateGlobalOutline, generateChapterTrend, generateInteractiveOptions } from './utils/novelAiHelper.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 
 // ============ 初始化 ============
@@ -1423,12 +1423,50 @@ function initNovelUIAndCommands() {
         }
     });
 
+    $('#cg-novel-gen-options').on('click', async function () {
+        const context = getContext();
+        if (!context || !context.characterId) {
+            toastr.warning('请先在主界面选中或进入一个角色的聊天！');
+            return;
+        }
+        const charInfo = context.characters[context.characterId];
+        if (!charInfo) {
+            toastr.warning('无法读取当前角色数据！');
+            return;
+        }
+
+        const btn = $(this);
+        const originalText = btn.html();
+        btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 推演中...').prop('disabled', true);
+
+        try {
+            toastr.info('正在读取角色预设并推演开局分支...');
+            const result = await generateInteractiveOptions(charInfo);
+
+            $('#cg-novel-guidance').val(result);
+            extension_settings[extensionName].novel_guidance = result;
+            saveSettingsDebounced();
+
+            toastr.success('分支推演完毕！已自动填入内容指导框中。');
+        } catch (e) {
+            toastr.error('分支推演失败: ' + e.message);
+            console.error(e);
+        } finally {
+            btn.html(originalText).prop('disabled', false);
+        }
+    });
+
     // 监听输入同步到 settings
     ['topic', 'genre', 'chapters', 'words', 'guidance', 'core-seed', 'characters', 'world', 'plot'].forEach(key => {
         $(`#cg-novel-${key}`).on('input change', function () {
             extension_settings[extensionName][`novel_${key.replace('-', '_')}`] = $(this).val();
             saveSettingsDebounced();
         });
+    });
+
+    $('#cg-novel-injection-enabled').on('change', function () {
+        extension_settings[extensionName].novel_injection_enabled = $(this).is(':checked');
+        saveSettingsDebounced();
     });
 
     // 初始加载
@@ -1442,6 +1480,25 @@ function initNovelUIAndCommands() {
     if (s.novel_characters) $('#cg-novel-characters').val(s.novel_characters);
     if (s.novel_world) $('#cg-novel-world').val(s.novel_world);
     if (s.novel_plot) $('#cg-novel-plot').val(s.novel_plot);
+    if (s.novel_injection_enabled) $('#cg-novel-injection-enabled').prop('checked', true);
+
+    // 注册小说推进注入钩子
+    if (eventSource && event_types) {
+        eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, (data) => {
+            const settings = extension_settings[extensionName];
+            if (settings && settings.novel_injection_enabled) {
+                if (settings.novel_world || settings.novel_characters || settings.novel_plot) {
+                    let injectionText = '\n\n[小说推进模式（系统强制指令）]\n';
+                    if (settings.novel_world) injectionText += `【世界背景纲要】\n${settings.novel_world}\n\n`;
+                    if (settings.novel_characters) injectionText += `【人物发展设定】\n${settings.novel_characters}\n\n`;
+                    if (settings.novel_plot) injectionText += `【后续主线剧情走向】\n${settings.novel_plot}\n\n`;
+                    injectionText += '请结合上述设定，严格顺应当前的剧情走向，在此后的对话中推进剧情，沉浸地扮演你的角色。';
+
+                    data.main += injectionText;
+                }
+            }
+        });
+    }
 
     // 注册 Slash Commands
     if (typeof SlashCommandParser !== 'undefined') {
