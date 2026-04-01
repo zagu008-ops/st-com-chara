@@ -1393,8 +1393,10 @@ function initNovelUIAndCommands() {
         btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 生成中...').prop('disabled', true);
 
         try {
+            addLog(`【小说推进】开始基于主题 "${topic}" 进行全局大纲推演...`);
             toastr.info('开始生成大纲，请耐心等待...');
             const result = await generateGlobalOutline(topic, genre, chapters, words, guidance, (status) => {
+                addLog(`【小说推进】大纲生成进度: ${status}`);
                 toastr.success(status);
             });
 
@@ -1414,8 +1416,10 @@ function initNovelUIAndCommands() {
             extension_settings[extensionName].novel_plot = result.plot;
             saveSettingsDebounced();
 
+            addLog('【小说推进】小说全局大纲生成完毕并已自动保存。');
             toastr.success('小说大纲生成完毕！');
         } catch (e) {
+            addLog(`【小说推进】大纲生成失败: ${e.message}`);
             toastr.error('大纲生成失败: ' + e.message);
             console.error(e);
         } finally {
@@ -1440,6 +1444,8 @@ function initNovelUIAndCommands() {
         btn.html('<i class="fa-solid fa-spinner fa-spin"></i> 推演中...').prop('disabled', true);
 
         try {
+            addLog(`【小说推进】已读取当前角色设定 (ID: ${context.characterId})`);
+            addLog('【小说推进】正在请求 AI 推演开局选项分支...');
             toastr.info('正在读取角色预设并推演开局分支...');
             const result = await generateInteractiveOptions(charInfo);
 
@@ -1447,8 +1453,10 @@ function initNovelUIAndCommands() {
             extension_settings[extensionName].novel_guidance = result;
             saveSettingsDebounced();
 
+            addLog('【小说推进】分支推演完毕，结果已自动填入内容指导框。');
             toastr.success('分支推演完毕！已自动填入内容指导框中。');
         } catch (e) {
+            addLog(`【小说推进】分支推演失败: ${e.message}`);
             toastr.error('分支推演失败: ' + e.message);
             console.error(e);
         } finally {
@@ -1495,6 +1503,7 @@ function initNovelUIAndCommands() {
                     injectionText += '请结合上述设定，严格顺应当前的剧情走向，在此后的对话中推进剧情，沉浸地扮演你的角色。';
 
                     data.main += injectionText;
+                    addLog(`【小说推进】已截获本次会话 Prompt！当前大纲与剧情走势已强行注入系统指令层 (本次注入长度: ${injectionText.length} 字符)。`);
                 }
             }
         });
