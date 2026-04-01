@@ -19,7 +19,7 @@ import { initAiHelperEvents } from './utils/workflowAiHelper.js?v=2';
 import { addImageToCache, initImageCacheEvents } from './utils/imageCache.js';
 import { addLog, addTask, updateTask, initLogEvents } from './utils/logger.js';
 import { initChatButtons } from './utils/chatButtons.js';
-import { generateGlobalOutline, generateChapterTrend, generateInteractiveOptions } from './utils/novelAiHelper.js';
+import { generateGlobalOutline, generateChapterTrend, generateInteractiveOptions, summarizeChatHistory } from './utils/novelAiHelper.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 
 // ============ 初始化 ============
@@ -1533,14 +1533,32 @@ function initNovelUIAndCommands() {
 
                 try {
                     toastr.info(`正在生成第 ${start} - ${end} 章的走势，请等待...`);
-                    // 在此处提取当前酒馆聊天记录作为 content 
-                    // 通常使用 context.chat 提取前面的一定对话，为了简单起见传入空提示，交由 LLM 根据 Plot 延伸
-                    const chatHistory = "暂无具体的聊天上下文传入模型，仅根据世界观与大纲推演...";
+
+                    const context = getContext();
+                    let chatHistory = "暂无具体的聊天上下文传入模型，仅根据世界观与大纲推演...";
+
+                    if (context && context.chat && context.chat.length > 1) {
+                        toastr.info('正在提取并总结当前历史聊天记录...');
+                        addLog('【小说推进】提取聊天记录，请求 AI 进行剧情大纲总结...');
+
+                        const N = 100;
+                        const recents = context.chat.slice(-N);
+                        const rawHistory = recents.map(c => `[${c.is_user ? '用户' : c.name}]: ${c.mes}`).join('\n');
+
+                        chatHistory = await summarizeChatHistory(rawHistory);
+                        addLog(`【小说推进】聊天记录总结完成 (总结长度: ${chatHistory.length} 字符)`);
+                        toastr.info('聊天记录总结完成，开始推演章节走势...');
+                        addLog(`【小说推进】开始推演后续 ${start}-${end} 章走势...`);
+                    } else {
+                        addLog(`【小说推进】尚无聊天记录，开始空推 ${start}-${end} 章剧情走势...`);
+                    }
+
                     const result = await generateChapterTrend(s.novel_guidance || '', s.novel_plot, chatHistory, parseInt(s.novel_chapters) || 100, start, end);
-                    // 可以使用系统的 addLog 或插入到当前聊天框中
+                    addLog('【小说推进】章节走势生成成功。');
                     toastr.success('章节走势生成成功！');
-                    return result; // returning text will output to chat if it's a valid macro or use sendSystemMessage 
+                    return `【第 ${start}-${end} 章 走势推演】\n${result}`;
                 } catch (e) {
+                    addLog(`【小说推进】生成章节走势失败：${e.message}`);
                     toastr.error('生成章节走势失败：' + e.message);
                     return '';
                 }

@@ -216,6 +216,21 @@ ${chapterList}
 - 在生成第${numChapters}章前不要出现结局章节。
 
 仅给出最终文本，不要解释任何内容。`;
+    },
+
+    summarizeHistory(chatLog) {
+        return `作为专业的小说剧情提炼师，请对以下角色扮演对局（RP回合）的原始聊天记录进行大总结。
+
+原始聊天记录：
+${chatLog}
+
+要求：
+1. 忽略琐碎的闲聊、重复性语气词和系统元提示。
+2. 提取出所有推动剧情发展的“关键事件”、“重要情报/决定”、以及“人物关系的变化”。
+3. 按照时间发展顺序，生成一份纯净、紧凑的故事大纲纪要（前情提要）。
+4. 语言精炼，只需陈述发生的事实，字数强烈压缩。
+
+请直接返回大纲纲要文本，不要包含任何客套话。`;
     }
 };
 
@@ -257,4 +272,12 @@ export async function generateGlobalOutline(topic, genre, numChapters, wordNumbe
 export async function generateChapterTrend(userGuidance, plotArchitecture, previousChaptersText, totalChapters, startChap, endChap) {
     const prompt = NovelPrompts.chunkedBlueprint(userGuidance, plotArchitecture, previousChaptersText, totalChapters, startChap, endChap);
     return await callNovelLLM('你是一个专业的小说章节编排助手。', prompt);
+}
+
+/**
+ * 总结冗长的聊天记录为纯净的剧情梗概
+ */
+export async function summarizeChatHistory(chatLog) {
+    const prompt = NovelPrompts.summarizeHistory(chatLog);
+    return await callNovelLLM('你是一个专业的小说剧情提炼师。', prompt);
 }
