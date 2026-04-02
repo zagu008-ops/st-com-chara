@@ -24,13 +24,17 @@
 /* ========== Modal Backdrop ========== */
 .comfyui-gen-modal-backdrop {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     z-index: 10000;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow-y: auto;
     animation: cg-fadein 0.2s ease;
 }
 
@@ -754,11 +758,14 @@
 }
 
 /* ========== Responsive ========== */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
 
     /* 弹窗底部锚定（避免顶部被裁剪） */
     .comfyui-gen-modal-backdrop {
         align-items: flex-end;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
     }
 
     .comfyui-gen-modal-content {
