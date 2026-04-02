@@ -268,6 +268,8 @@
     font-size: 0.85em;
     cursor: pointer;
     transition: all var(--cg-transition);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .comfyui-gen-btn.primary {
@@ -307,6 +309,8 @@
     padding: 6px;
     border-radius: 6px;
     transition: all var(--cg-transition);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .comfyui-gen-btn-icon:hover {
@@ -550,6 +554,8 @@
     transition: background var(--cg-transition);
     color: var(--cg-text);
     font-size: 0.9em;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .comfyui-gen-menu-item:hover {
@@ -601,6 +607,8 @@
     transition: background var(--cg-transition);
     font-size: 0.85em;
     color: var(--cg-text);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .comfyui-gen-preset-item:hover {
@@ -747,10 +755,16 @@
 
 /* ========== Responsive ========== */
 @media (max-width: 600px) {
+
+    /* 弹窗全屏化 */
     .comfyui-gen-modal-content {
-        width: 98vw;
-        max-height: 90vh;
-        border-radius: 12px;
+        width: 100vw;
+        max-height: 95vh;
+        border-radius: 12px 12px 0 0;
+    }
+
+    .comfyui-gen-tab-content {
+        padding: 14px 12px;
     }
 
     .comfyui-gen-field-grid {
@@ -759,6 +773,21 @@
 
     .comfyui-gen-preset-grid {
         grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    }
+
+    /* 按钮增大触摸区域（Apple HIG 最小 44px） */
+    .comfyui-gen-btn {
+        min-height: 44px;
+        padding: 10px 16px;
+        font-size: 0.88em;
+    }
+
+    .comfyui-gen-btn-icon {
+        min-width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 
     /* Tab 导航横向滚动 */
@@ -777,8 +806,9 @@
     .comfyui-gen-tab {
         white-space: nowrap;
         flex-shrink: 0;
-        padding: 10px 12px;
+        padding: 12px 14px;
         font-size: 0.82em;
+        min-height: 44px;
     }
 
     /* AI 对话框全屏 */
@@ -821,16 +851,30 @@
         flex-shrink: 0;
     }
 
-    /* FAB 悬浮球移动端 - 缩小尺寸 */
+    /* FAB 悬浮球移动端 */
     #comfyui-gen-fab {
         width: 44px;
         height: 44px;
         font-size: 1em;
     }
 
-    /* 菜单移动端宽度 */
+    /* FAB 菜单移动端 */
     #comfyui-gen-fab-menu {
-        width: 220px;
+        width: 240px;
+        max-height: 70vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* 菜单项增大触摸区域 */
+    .comfyui-gen-menu-item {
+        padding: 14px 16px;
+        min-height: 48px;
+    }
+
+    .comfyui-gen-preset-item {
+        padding: 10px 12px;
+        min-height: 44px;
     }
 }
 

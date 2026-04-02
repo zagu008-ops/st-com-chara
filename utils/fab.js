@@ -205,11 +205,15 @@ function createMenuElement() {
 
     document.body.appendChild(menuElement);
 
-    document.addEventListener('click', (e) => {
+    // 延迟绑定外部点击关闭，避免移动端 touchend → click 幽灵事件导致菜单刚打开就被关闭
+    const onOutsideClick = (e) => {
         if (isMenuOpen && !menuElement.contains(e.target) && !fabElement.contains(e.target)) {
             closeMenu();
         }
-    });
+    };
+    // 用 mousedown/touchstart 代替 click，更靠谱地检测外部触摸
+    document.addEventListener('mousedown', onOutsideClick);
+    document.addEventListener('touchstart', onOutsideClick, { passive: true });
 }
 
 /**
@@ -256,17 +260,26 @@ function closeMenu() {
 function positionMenu() {
     if (!fabElement || !menuElement) return;
     const fabRect = fabElement.getBoundingClientRect();
-    // 菜单放在 FAB 上方，右对齐
-    const menuWidth = 260;
+    const menuWidth = parseInt(window.getComputedStyle(menuElement).width) || 260;
+
+    // 菜单放在 FAB 上方，右对齐（使用 left/top 代替 bottom，避免 transform 冲突）
     let menuLeft = fabRect.left + fabRect.width - menuWidth;
-    let menuBottom = window.innerHeight - fabRect.top + 10;
+    let menuTop = fabRect.top - menuElement.offsetHeight - 10;
+
+    // 如果上方空间不够，放到下方
+    if (menuTop < 8) {
+        menuTop = fabRect.bottom + 10;
+    }
 
     // 防止超出左边
     menuLeft = Math.max(8, menuLeft);
+    // 防止超出右边
+    menuLeft = Math.min(menuLeft, window.innerWidth - menuWidth - 8);
 
     menuElement.style.left = menuLeft + 'px';
-    menuElement.style.bottom = menuBottom + 'px';
+    menuElement.style.top = menuTop + 'px';
     menuElement.style.right = 'auto';
+    menuElement.style.bottom = 'auto';
 }
 
 /**
@@ -348,21 +361,39 @@ function renderPresetList(type) {
  * 绑定菜单事件
  */
 function bindMenuEvents() {
+    // 触摸事件防重复触发标志
+    let touchHandled = false;
+
+    function addTouchAndClick(element, handler) {
+        element.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            touchHandled = true;
+            handler(e);
+            // 重置 flag，防止后续 click 再次触发
+            setTimeout(() => { touchHandled = false; }, 300);
+        }, { passive: false });
+        element.addEventListener('click', (e) => {
+            if (!touchHandled) {
+                handler(e);
+            }
+        });
+    }
+
     const generateBtn = document.getElementById('comfyui-gen-btn-generate');
     if (generateBtn) {
-        generateBtn.addEventListener('click', handleGenerate);
+        addTouchAndClick(generateBtn, handleGenerate);
     }
 
     const settingsBtn = document.getElementById('comfyui-gen-btn-settings');
     if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
+        addTouchAndClick(settingsBtn, () => {
             closeMenu();
             openSettingsPanel();
         });
     }
 
     menuElement.querySelectorAll('.comfyui-gen-preset-item').forEach(item => {
-        item.addEventListener('click', () => {
+        addTouchAndClick(item, () => {
             const type = item.dataset.type;
             const id = item.dataset.id;
             setActivePreset(type, id);
