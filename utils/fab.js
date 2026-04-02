@@ -233,8 +233,9 @@ function toggleMenu() {
 function openMenu() {
     isMenuOpen = true;
     renderMenu();
-    positionMenu();
+    // 必须先设置 display:block 再定位，否则 offsetHeight 为 0（菜单 opacity 默认 0，不会闪烁）
     menuElement.style.display = 'block';
+    positionMenu();
     fabElement.classList.add('active');
 
     requestAnimationFrame(() => {
