@@ -756,10 +756,14 @@
 /* ========== Responsive ========== */
 @media (max-width: 600px) {
 
-    /* 弹窗全屏化 */
+    /* 弹窗底部锚定（避免顶部被裁剪） */
+    .comfyui-gen-modal-backdrop {
+        align-items: flex-end;
+    }
+
     .comfyui-gen-modal-content {
         width: 100vw;
-        max-height: 95vh;
+        max-height: 92vh;
         border-radius: 12px 12px 0 0;
     }
 
