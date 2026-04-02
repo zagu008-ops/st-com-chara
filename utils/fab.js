@@ -296,6 +296,10 @@ function renderMenu() {
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                 <span>生成图片</span>
             </div>
+            <div class="comfyui-gen-menu-item" id="comfyui-gen-btn-novel" style="color: #9b59b6;">
+                <i class="fa-solid fa-book"></i>
+                <span>小说推进</span>
+            </div>
         </div>
 
         <div class="comfyui-gen-menu-divider"></div>
@@ -385,6 +389,14 @@ function bindMenuEvents() {
         addTouchAndClick(generateBtn, handleGenerate);
     }
 
+    const novelBtn = document.getElementById('comfyui-gen-btn-novel');
+    if (novelBtn) {
+        addTouchAndClick(novelBtn, () => {
+            closeMenu();
+            openSettingsPanel('novel');
+        });
+    }
+
     const settingsBtn = document.getElementById('comfyui-gen-btn-settings');
     if (settingsBtn) {
         addTouchAndClick(settingsBtn, () => {
@@ -434,11 +446,30 @@ async function handleGenerate() {
 }
 
 /**
- * 打开设置面板
+ * 打开设置面板，可选直接跳转到指定 Tab
+ * @param {string} [tabName] - 可选，Tab 名称如 'novel', 'comfyui', 'autogen' 等
  */
-function openSettingsPanel() {
+function openSettingsPanel(tabName) {
     const modal = document.getElementById('comfyui-gen-settings-modal');
     if (modal) {
         modal.style.display = 'flex';
+
+        if (tabName) {
+            // 切换到指定 Tab
+            const tabs = modal.querySelectorAll('.comfyui-gen-tab');
+            const panels = modal.querySelectorAll('.comfyui-gen-panel');
+            tabs.forEach(t => t.classList.remove('active'));
+            panels.forEach(p => p.classList.remove('active'));
+
+            const targetTab = modal.querySelector(`.comfyui-gen-tab[data-tab="${tabName}"]`);
+            const targetPanel = modal.querySelector(`.comfyui-gen-panel[data-panel="${tabName}"]`);
+            if (targetTab) targetTab.classList.add('active');
+            if (targetPanel) targetPanel.classList.add('active');
+
+            // 确保 Tab 栏滚动到可见位置
+            if (targetTab) {
+                targetTab.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }
+        }
     }
 }
